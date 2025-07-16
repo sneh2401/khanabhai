@@ -10,34 +10,38 @@ const END_PHRASES = [
   "finish order",
 ];
 
+const menuItems = {
+  fries: 59,
+  garlicbread: 99,
+  pasta: 149,
+  salad: 89,
+  burger: 129,
+  pizza: 199,
+};
+
 export default function OrderPage() {
   const router = useRouter();
-  const [messages, setMessages] = useState([
-    {
-      from: "ai",
-      text: "👋 Hi there! What would you like to order today? Just speak or type — try 'large fries', 'garlic bread', or 'pizza'.",
-    },
-  ]);
-  const [input, setInput] = useState("");
-  const [orderList, setOrderList] = useState([]);
-  const [done, setDone] = useState(false);
   const recognitionRef = useRef(null);
   const listeningRef = useRef(false);
 
-  const foodItems = [
-    "fries",
-    "garlic bread",
-    "pasta",
-    "salad",
-    "burger",
-    "pizza",
-  ];
+  const [messages, setMessages] = useState([
+    {
+      from: "ai",
+      text: "👋 Hi! What would you like to order today?",
+    },
+  ]);
+  const [input, setInput] = useState("");
+  const [done, setDone] = useState(false);
+  const [orderList, setOrderList] = useState([]);
 
+  // Setup speech recognition
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Please use Google Chrome – your browser doesn't support SpeechRecognition.");
+      alert(
+        "Please use Google Chrome — Speech Recognition is not supported."
+      );
       return;
     }
 
@@ -47,89 +51,55 @@ export default function OrderPage() {
     recognition.continuous = false;
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript.trim();
-      handleVoiceInput(transcript);
+      const text = event.results[0][0].transcript.trim();
+      handleVoiceInput(text);
     };
 
     recognition.onend = () => {
       if (!done) startListening();
     };
 
-    recognition.onerror = (e) => {
-      console.error("🧠 Speech error:", e);
-    };
+    recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
     startListening();
 
-    return () => {
-      recognition.stop();
-      listeningRef.current = false;
-    };
+    return () => recognition.stop();
   }, [done]);
 
-  // 🎤 Speak AI messages
+  // AI speech output for AI messages
   useEffect(() => {
     const last = messages[messages.length - 1];
     if (last?.from === "ai") {
-      const u = new window.SpeechSynthesisUtterance(last.text);
+      const utterance = new SpeechSynthesisUtterance(last.text);
       window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      window.speechSynthesis.speak(utterance);
     }
   }, [messages]);
+
+  // When order is done update message with correct total
+  useEffect(() => {
+    if (done) {
+      setTimeout(() => {
+        const total = orderList.reduce(
+          (sum, item) => sum + item.quantity * item.price,
+          0
+        );
+        setMessages([
+          {
+            from: "ai",
+            text: `✅ Your order is placed! Total bill is ₹${total}. Thank you 🎉`,
+          },
+        ]);
+      }, 200);
+    }
+  }, [done, orderList]);
 
   const startListening = () => {
     try {
       recognitionRef.current?.start();
       listeningRef.current = true;
-    } catch {
-      console.warn("Already listening");
-    }
-  };
-
-  const handleVoiceInput = (msg) => {
-    const lower = msg.toLowerCase();
-    if (END_PHRASES.some((phrase) => lower.includes(phrase))) {
-      setDone(true);
-      recognitionRef.current?.stop();
-      setMessages((msgs) => [
-        ...msgs,
-        { from: "user", text: msg },
-        { from: "ai", text: "✅ Thank you so much, your order is placed and being prepared!" },
-      ]);
-      return;
-    }
-    sendMsg(msg);
-  };
-
-  const sendMsg = (msg) => {
-    if (!msg.trim()) return;
-    setMessages((m) => [...m, { from: "user", text: msg }]);
-
-    const foundItems = foodItems.filter((item) =>
-      msg.toLowerCase().includes(item)
-    );
-
-    if (foundItems.length) {
-      setOrderList((list) => [
-        ...list,
-        ...foundItems.filter((item) => !list.includes(item)),
-      ]);
-    }
-
-    setTimeout(() => {
-      if (!done) {
-        setMessages((m) => [
-          ...m,
-          {
-            from: "ai",
-            text: foundItems.length
-              ? `🧾 Added: ${foundItems.join(", ")}. Say more items or say "my order is done" to finish.`
-              : "🤔 I didn’t catch a food item. Try saying 'burger' or 'pasta'.",
-          },
-        ]);
-      }
-    }, 500);
+    } catch {}
   };
 
   const handleGoBack = () => {
@@ -139,73 +109,240 @@ export default function OrderPage() {
     router.push("/");
   };
 
+  const handleVoiceInput = (msg) => {
+    const lower = msg.toLowerCase();
+
+    // End order trigger
+    if (END_PHRASES.some((p) => lower.includes(p))) {
+      recognitionRef.current?.stop();
+      setDone(true);
+      return;
+    }
+
+    // Price query handling
+    const priceQuery = Object.keys(menuItems).find(
+      (item) => lower.includes("price") && lower.includes(item)
+    );
+    if (priceQuery) {
+      setMessages((m) => [
+        ...m,
+        { from: "user", text: msg },
+        {
+          from: "ai",
+          text: `💰 The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
+        },
+      ]);
+      return;
+    }
+
+    setMessages((m) => [...m, { from: "user", text: msg }]);
+
+    // Quantity word map for common words
+    const quantityWords = {
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+    };
+
+    const isRemove = lower.includes("remove") || lower.includes("cancel");
+    const words = lower.split(" ");
+    const ordersToAdd = [];
+
+    Object.keys(menuItems).forEach((item) => {
+      const index = words.findIndex((w) => w.includes(item));
+      if (index !== -1) {
+        let qty = 1;
+        const before = words[index - 1];
+        if (!isNaN(parseInt(before))) {
+          qty = parseInt(before);
+        } else if (quantityWords[before]) {
+          qty = quantityWords[before];
+        }
+        ordersToAdd.push({ name: item, quantity: qty });
+      }
+    });
+
+    if (ordersToAdd.length > 0) {
+      setOrderList((prev) => {
+        let updated = [...prev];
+
+        for (const { name, quantity } of ordersToAdd) {
+          const price = menuItems[name];
+          const existingIndex = updated.findIndex((i) => i.name === name);
+          const existing = updated.find((i) => i.name === name);
+
+          if (isRemove) {
+            // Remove logic with quantity check
+            if (!existing) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `⚠️ You don't have any ${name} in your order.`,
+                },
+              ]);
+              continue;
+            }
+            if (quantity > existing.quantity) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `❌ You only have ${existing.quantity} ${name}${existing.quantity > 1 ? 's' : ''}, cannot remove ${quantity}.`,
+                },
+              ]);
+              continue;
+            }
+
+            // Deduct requested quantity
+            updated[existingIndex].quantity -= quantity;
+
+            if (updated[existingIndex].quantity <= 0) {
+              updated.splice(existingIndex, 1);
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `❌ Removed all ${name} from your order.`,
+                },
+              ]);
+            } else {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `❌ Removed ${quantity} ${name}${quantity > 1 ? 's' : ''} from your order.`,
+                },
+              ]);
+            }
+          } else {
+            if (existing) {
+              updated[existingIndex].quantity += quantity;
+            } else {
+              updated.push({ name, price, quantity });
+            }
+
+            setMessages((msgs) => [
+              ...msgs,
+              {
+                from: "ai",
+                text: `🍽️ Added ${quantity} ${name}${quantity > 1 ? 's' : ''} to your order.`,
+              },
+            ]);
+          }
+        }
+
+        return updated;
+      });
+    }
+  };
+
+  const handleSend = () => {
+    if (!input.trim()) return;
+    handleVoiceInput(input);
+    setInput("");
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white to-indigo-100 flex flex-col items-center px-4">
-      {/* Topbar */}
-      <div className="w-full max-w-5xl pt-6 flex justify-between items-center">
+    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 px-4 pb-12">
+      {/* Header */}
+      <header className="bg-white/90 backdrop-blur shadow-md sticky top-0 z-20 py-4 px-6 flex justify-between items-center border-b border-amber-200">
+        <h1 className="text-xl font-bold text-amber-900">
+          🍽️ KhanaBuddy Order Assistant
+        </h1>
         <button
           onClick={handleGoBack}
-          className="bg-gray-200 py-2 px-4 rounded-full text-sm font-semibold shadow hover:bg-gray-300"
+          className="bg-gradient-to-r from-rose-500 to-orange-400 text-white font-semibold px-5 py-2.5 rounded-xl shadow hover:scale-105 transition"
         >
-          ⬅️ Back to Home
+          ⬅ Back
         </button>
-        <span className={`text-sm font-medium ${done ? 'text-green-600' : 'text-blue-600 animate-pulse'}`}>
-          {done ? "🛒 Order submitted." : "🎙️ Listening... say 'my order is done' to finish"}
-        </span>
-      </div>
+      </header>
 
-      {/* AI Chat Box */}
-      <div className="w-full max-w-2xl mt-6 bg-white p-6 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold mb-4 text-center">🤖 Chat with KhanaBuddy</h1>
-        <div className="h-80 overflow-y-auto p-2 space-y-3 bg-gray-50 border rounded">
-          {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`max-w-[80%] px-4 py-2 rounded-lg text-sm leading-relaxed ${
-                msg.from === "ai"
-                  ? "bg-blue-100 text-blue-900 self-start"
-                  : "ml-auto bg-green-100 text-green-900 self-end"
-              }`}
-            >
-              <b>{msg.from === "ai" ? "KhanaBuddy" : "You"}:</b> {msg.text}
-            </div>
-          ))}
-        </div>
+      {/* Main Layout */}
+      <div className="max-w-6xl mx-auto mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chat Box */}
+        <section className="col-span-2 bg-white rounded-3xl shadow-xl border border-orange-200/50 p-6 space-y-4">
+          <h2 className="text-xl font-bold text-amber-900 mb-2">
+            🤖 Chat with KhanaBuddy
+          </h2>
 
-        {/* Text input box */}
-        {!done && (
-          <div className="flex gap-2 mt-4">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) =>
-                e.key === "Enter" && handleVoiceInput(input)
-              }
-              placeholder="Type or just speak..."
-              className="flex-1 border px-4 py-2 rounded focus:ring focus:ring-indigo-300"
-            />
-            <button
-              onClick={() => handleVoiceInput(input)}
-              className="bg-indigo-600 text-white font-bold px-5 rounded hover:bg-indigo-700"
-            >
-              Send
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Order Summary */}
-      <div className="w-full max-w-2xl mt-6 mb-8 bg-white shadow-md rounded-xl p-6">
-        <h2 className="text-xl font-semibold mb-3">🧾 Your Live Order</h2>
-        {orderList.length === 0 ? (
-          <p className="text-gray-500">No items yet. Start speaking or typing to add items.</p>
-        ) : (
-          <ul className="space-y-2 list-disc ml-6 text-gray-800">
-            {orderList.map((item, index) => (
-              <li key={index} className="capitalize">✅ {item}</li>
+          <div className="h-80 overflow-y-auto space-y-3 bg-rose-50 border border-rose-100 rounded-xl p-4">
+            {messages.map((msg, i) => (
+              <div
+                key={i}
+                className={`max-w-[80%] px-4 py-2 rounded-xl text-sm ${
+                  msg.from === "ai"
+                    ? "bg-amber-100 text-amber-900 self-start"
+                    : "ml-auto bg-green-100 text-green-900 self-end"
+                }`}
+              >
+                <b>{msg.from === "ai" ? "KhanaBuddy" : "You"}:</b> {msg.text}
+              </div>
             ))}
-          </ul>
-        )}
+          </div>
+
+          {!done && (
+            <div className="flex gap-2 mt-4">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                placeholder="Type or just speak..."
+                className="flex-1 px-4 py-2 border border-amber-300 rounded-xl focus:ring-2 focus:ring-orange-300 outline-none"
+              />
+              <button
+                onClick={handleSend}
+                className="bg-gradient-to-r from-orange-500 to-amber-400 text-white font-semibold px-5 py-2 rounded-xl shadow hover:scale-105 transition"
+              >
+                Send
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Order Summary */}
+        <section className="bg-white p-6 rounded-3xl shadow-xl border border-orange-200/50">
+          <h2 className="text-xl font-semibold text-amber-900 mb-4">
+            🧾 Your Order
+          </h2>
+
+          {orderList.length === 0 ? (
+            <p className="text-gray-600 italic">
+              Your cart is empty. Add items to see them here.
+            </p>
+          ) : (
+            <>
+              <ul className="divide-y mb-4 border-t border-orange-100">
+                {orderList.map((item, i) => (
+                  <li
+                    key={i}
+                    className="py-3 text-sm flex justify-between text-gray-900"
+                  >
+                    <span>
+                      {item.quantity} × {item.name}
+                    </span>
+                    <span>₹{item.quantity * item.price}</span>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="text-right text-lg font-bold text-amber-800">
+                Total: ₹
+                {orderList.reduce(
+                  (sum, item) => sum + item.quantity * item.price,
+                  0
+                )}
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
