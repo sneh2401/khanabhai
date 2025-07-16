@@ -19,7 +19,10 @@ export default function LandingPage() {
 
   // Automatic background slide every 4 seconds
   useEffect(() => {
-    const intv = setInterval(() => setIdx(i => (i + 1) % bgImages.length), 4000);
+    const intv = setInterval(
+      () => setIdx((i) => (i + 1) % bgImages.length),
+      4000
+    );
     return () => clearInterval(intv);
   }, []);
 
