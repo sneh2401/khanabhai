@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import AdminNavbar from "../_components/adminNavbar";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -42,39 +43,10 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
 
-      {/* ================= HEADER ================= */}
-      <header className="bg-white/90 backdrop-blur-lg shadow-xl border-b border-amber-200/30 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <div className="flex items-center gap-4">
+      {/* ================= NAVBAR COMPONENT ================= */}
+      <AdminNavbar />
 
-              {/* Logo with warm colors */}
-              <div className="w-12 h-12 bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 rounded-2xl flex items-center justify-center shadow-lg hover:scale-105 transition-transform duration-200">
-                <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
-                </svg>
-              </div>
-
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-stone-800 to-amber-800 bg-clip-text text-transparent">KhanaBuddy</h1>
-                <p className="text-sm text-amber-700 font-medium">Admin Dashboard</p>
-              </div>
-            </div>
-
-            <button
-              onClick={() => router.push("/")}
-              className="group bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white px-6 py-3 rounded-2xl font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-            >
-              <svg className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd"/>
-              </svg>
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* ================= MAIN ================= */}
+      {/* ================= MAIN CONTENT ================= */}
       <main className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
 
@@ -124,23 +96,11 @@ export default function AdminDashboard() {
 
           {/* ---------- ACTIVE ORDERS TABLE ---------- */}
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl border border-amber-200/50 overflow-hidden">
-            <div className="px-8 py-6 border-b border-amber-200/50 bg-gradient-to-r from-amber-50/50 to-orange-50/50 flex justify-between items-center">
+            <div className="px-8 py-6 border-b border-amber-200/50 bg-gradient-to-r from-amber-50/50 to-orange-50/50">
               <div>
                 <h3 className="text-2xl font-bold text-amber-900">Active Orders</h3>
                 <p className="text-sm text-amber-700 font-medium">Manage and track current orders in real-time</p>
               </div>
-
-              {/* Updated Sales Button with unique styling */}
-              <button
-                onClick={() => router.push("/admin-dashboard/saleslist")}
-                className="group relative overflow-hidden bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-3 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                <svg className="w-5 h-5 group-hover:rotate-12 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.293 2.293c-.63.63-.184 1.707.707 1.707H19M7 13v4a2 2 0 002 2h2m8-2a2 2 0 11-4 0 2 2 0 014 0zM13 7a2 2 0 11-4 0 2 2 0 014 0z"/>
-                </svg>
-                <span className="relative">Sales Report</span>
-              </button>
             </div>
 
             <div className="overflow-x-auto">
