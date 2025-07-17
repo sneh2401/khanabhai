@@ -12,7 +12,7 @@ const END_PHRASES = [
 
 const menuItems = {
   fries: 59,
-  garlicbread: 99,
+  "garlic bread": 99,
   pasta: 149,
   salad: 89,
   burger: 129,
@@ -25,40 +25,41 @@ export default function OrderPage() {
   const listeningRef = useRef(false);
 
   const [messages, setMessages] = useState([
-    {
-      from: "ai",
-      text: "👋 Hi! What would you like to order today?",
-    },
+    { from: "ai", text: "👋 Hi! What would you like to order today?" },
   ]);
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
 
-  // Setup speech recognition
+  // Ai voice response
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (last?.from === "ai") {
+      const u = new window.SpeechSynthesisUtterance(last.text);
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+  }, [messages]);
+
+  // SpeechRecognition setup
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert(
-        "Please use Google Chrome — Speech Recognition is not supported."
-      );
+      alert("Please use Google Chrome — Speech Recognition is not supported.");
       return;
     }
-
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
     recognition.interimResults = false;
     recognition.continuous = false;
-
     recognition.onresult = (event) => {
       const text = event.results[0][0].transcript.trim();
       handleVoiceInput(text);
     };
-
     recognition.onend = () => {
       if (!done) startListening();
     };
-
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
@@ -67,17 +68,6 @@ export default function OrderPage() {
     return () => recognition.stop();
   }, [done]);
 
-  // AI speech output for AI messages
-  useEffect(() => {
-    const last = messages[messages.length - 1];
-    if (last?.from === "ai") {
-      const utterance = new SpeechSynthesisUtterance(last.text);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    }
-  }, [messages]);
-
-  // When order is done update message with correct total
   useEffect(() => {
     if (done) {
       setTimeout(() => {
@@ -112,14 +102,14 @@ export default function OrderPage() {
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
-    // End order trigger
+    // 1. End order
     if (END_PHRASES.some((p) => lower.includes(p))) {
       recognitionRef.current?.stop();
       setDone(true);
       return;
     }
 
-    // Price query handling
+    // 2. Price query
     const priceQuery = Object.keys(menuItems).find(
       (item) => lower.includes("price") && lower.includes(item)
     );
@@ -137,7 +127,7 @@ export default function OrderPage() {
 
     setMessages((m) => [...m, { from: "user", text: msg }]);
 
-    // Quantity word map for common words
+    // 3. Quantity parsing for numbers and word-numbers
     const quantityWords = {
       one: 1,
       two: 2,
@@ -152,18 +142,35 @@ export default function OrderPage() {
     };
 
     const isRemove = lower.includes("remove") || lower.includes("cancel");
-    const words = lower.split(" ");
     const ordersToAdd = [];
+    const words = lower.split(" ");
 
     Object.keys(menuItems).forEach((item) => {
-      const index = words.findIndex((w) => w.includes(item));
-      if (index !== -1) {
+      // Regex for multi-word AND single-word matching (whole word/phrase only)
+      const regex = new RegExp(`\\b${item.replace(/ /g, "\\s+")}\\b`, "i");
+      if (regex.test(lower)) {
+        // Find word position(s)
+        const itemWords = item.split(" ");
+        let startIndex = -1;
+        for (let i = 0; i <= words.length - itemWords.length; i++) {
+          if (
+            words
+              .slice(i, i + itemWords.length)
+              .join(" ")
+              .toLowerCase() === item.toLowerCase()
+          ) {
+            startIndex = i;
+            break;
+          }
+        }
         let qty = 1;
-        const before = words[index - 1];
-        if (!isNaN(parseInt(before))) {
-          qty = parseInt(before);
-        } else if (quantityWords[before]) {
-          qty = quantityWords[before];
+        if (startIndex > 0) {
+          const beforeWord = words[startIndex - 1];
+          if (!isNaN(parseInt(beforeWord))) {
+            qty = parseInt(beforeWord);
+          } else if (quantityWords[beforeWord]) {
+            qty = quantityWords[beforeWord];
+          }
         }
         ordersToAdd.push({ name: item, quantity: qty });
       }
@@ -179,7 +186,6 @@ export default function OrderPage() {
           const existing = updated.find((i) => i.name === name);
 
           if (isRemove) {
-            // Remove logic with quantity check
             if (!existing) {
               setMessages((msgs) => [
                 ...msgs,
@@ -195,30 +201,29 @@ export default function OrderPage() {
                 ...msgs,
                 {
                   from: "ai",
-                  text: `❌ You only have ${existing.quantity} ${name}${existing.quantity > 1 ? 's' : ''}, cannot remove ${quantity}.`,
+                  text: `❌ You only have ${existing.quantity} ${name}${
+                    existing.quantity > 1 ? "s" : ""
+                  }, cannot remove ${quantity}.`,
                 },
               ]);
               continue;
             }
 
-            // Deduct requested quantity
             updated[existingIndex].quantity -= quantity;
-
             if (updated[existingIndex].quantity <= 0) {
               updated.splice(existingIndex, 1);
               setMessages((msgs) => [
                 ...msgs,
-                {
-                  from: "ai",
-                  text: `❌ Removed all ${name} from your order.`,
-                },
+                { from: "ai", text: `❌ Removed all ${name} from your order.` },
               ]);
             } else {
               setMessages((msgs) => [
                 ...msgs,
                 {
                   from: "ai",
-                  text: `❌ Removed ${quantity} ${name}${quantity > 1 ? 's' : ''} from your order.`,
+                  text: `❌ Removed ${quantity} ${name}${
+                    quantity > 1 ? "s" : ""
+                  } from your order.`,
                 },
               ]);
             }
@@ -228,12 +233,13 @@ export default function OrderPage() {
             } else {
               updated.push({ name, price, quantity });
             }
-
             setMessages((msgs) => [
               ...msgs,
               {
                 from: "ai",
-                text: `🍽️ Added ${quantity} ${name}${quantity > 1 ? 's' : ''} to your order.`,
+                text: `🍽️ Added ${quantity} ${name}${
+                  quantity > 1 ? "s" : ""
+                } to your order.`,
               },
             ]);
           }
@@ -312,7 +318,6 @@ export default function OrderPage() {
           <h2 className="text-xl font-semibold text-amber-900 mb-4">
             🧾 Your Order
           </h2>
-
           {orderList.length === 0 ? (
             <p className="text-gray-600 italic">
               Your cart is empty. Add items to see them here.
@@ -332,7 +337,6 @@ export default function OrderPage() {
                   </li>
                 ))}
               </ul>
-
               <div className="text-right text-lg font-bold text-amber-800">
                 Total: ₹
                 {orderList.reduce(
