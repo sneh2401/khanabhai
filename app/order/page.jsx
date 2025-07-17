@@ -8,6 +8,7 @@ const END_PHRASES = [
   "order done",
   "submit order",
   "finish order",
+  "murder isdone",
 ];
 
 const menuItems = {
@@ -25,14 +26,15 @@ export default function OrderPage() {
   const listeningRef = useRef(false);
 
   const [messages, setMessages] = useState([
-    { from: "ai", text: "👋 Hi! What would you like to order today?" },
+    { from: "ai", text: " Hi , What would you like to order ?" },
   ]);
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
 
-  // Ai voice response
+  // AI voice response - This will speak "added" when the message is added
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const last = messages[messages.length - 1];
     if (last?.from === "ai") {
       const u = new window.SpeechSynthesisUtterance(last.text);
@@ -43,6 +45,7 @@ export default function OrderPage() {
 
   // SpeechRecognition setup
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -78,7 +81,7 @@ export default function OrderPage() {
         setMessages([
           {
             from: "ai",
-            text: `✅ Your order is placed! Total bill is ₹${total}. Thank you 🎉`,
+            text: ` Your order is placed! Total bill is ₹${total}. Thank you `,
           },
         ]);
       }, 200);
@@ -99,6 +102,7 @@ export default function OrderPage() {
     router.push("/");
   };
 
+  // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
@@ -119,7 +123,7 @@ export default function OrderPage() {
         { from: "user", text: msg },
         {
           from: "ai",
-          text: `💰 The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
+          text: ` The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
         },
       ]);
       return;
@@ -127,7 +131,7 @@ export default function OrderPage() {
 
     setMessages((m) => [...m, { from: "user", text: msg }]);
 
-    // 3. Quantity parsing for numbers and word-numbers
+    // Number parsing
     const quantityWords = {
       one: 1,
       two: 2,
@@ -146,10 +150,8 @@ export default function OrderPage() {
     const words = lower.split(" ");
 
     Object.keys(menuItems).forEach((item) => {
-      // Regex for multi-word AND single-word matching (whole word/phrase only)
       const regex = new RegExp(`\\b${item.replace(/ /g, "\\s+")}\\b`, "i");
       if (regex.test(lower)) {
-        // Find word position(s)
         const itemWords = item.split(" ");
         let startIndex = -1;
         for (let i = 0; i <= words.length - itemWords.length; i++) {
@@ -177,6 +179,7 @@ export default function OrderPage() {
     });
 
     if (ordersToAdd.length > 0) {
+      let aiResponses = [];
       setOrderList((prev) => {
         let updated = [...prev];
 
@@ -187,66 +190,56 @@ export default function OrderPage() {
 
           if (isRemove) {
             if (!existing) {
-              setMessages((msgs) => [
-                ...msgs,
-                {
-                  from: "ai",
-                  text: `⚠️ You don't have any ${name} in your order.`,
-                },
-              ]);
+              aiResponses.push(` You don't have any ${name} in your order. removed`);
               continue;
             }
-            if (quantity > existing.quantity) {
-              setMessages((msgs) => [
-                ...msgs,
-                {
-                  from: "ai",
-                  text: `❌ You only have ${existing.quantity} ${name}${
-                    existing.quantity > 1 ? "s" : ""
-                  }, cannot remove ${quantity}.`,
-                },
-              ]);
+            const prevQty = existing.quantity;
+            if (quantity > prevQty) {
+              aiResponses.push(
+                ` You only have ${prevQty} ${name}${prevQty > 1 ? "s" : ""}, cannot remove ${quantity}. removed`
+              );
               continue;
             }
 
+            // Now we can remove safely
             updated[existingIndex].quantity -= quantity;
             if (updated[existingIndex].quantity <= 0) {
               updated.splice(existingIndex, 1);
-              setMessages((msgs) => [
-                ...msgs,
-                { from: "ai", text: `❌ Removed all ${name} from your order.` },
-              ]);
+              if (quantity === prevQty) {
+                aiResponses.push(
+                  ` Removed all ${name} from your order. removed`
+                );
+              } else {
+                aiResponses.push(
+                  ` Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
+                );
+              }
             } else {
-              setMessages((msgs) => [
-                ...msgs,
-                {
-                  from: "ai",
-                  text: `❌ Removed ${quantity} ${name}${
-                    quantity > 1 ? "s" : ""
-                  } from your order.`,
-                },
-              ]);
+              aiResponses.push(
+                `Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
+              );
             }
           } else {
+            // ADD logic - This will trigger voice saying "added"
             if (existing) {
               updated[existingIndex].quantity += quantity;
             } else {
               updated.push({ name, price, quantity });
             }
-            setMessages((msgs) => [
-              ...msgs,
-              {
-                from: "ai",
-                text: `🍽️ Added ${quantity} ${name}${
-                  quantity > 1 ? "s" : ""
-                } to your order.`,
-              },
-            ]);
+            aiResponses.push("added");
           }
         }
 
         return updated;
       });
+
+      // Add AI responses ONCE - This will trigger the voice response
+      if (aiResponses.length > 0) {
+        setMessages((msgs) => [
+          ...msgs,
+          ...aiResponses.map((text) => ({ from: "ai", text })),
+        ]);
+      }
     }
   };
 
@@ -261,7 +254,7 @@ export default function OrderPage() {
       {/* Header */}
       <header className="bg-white/90 backdrop-blur shadow-md sticky top-0 z-20 py-4 px-6 flex justify-between items-center border-b border-amber-200">
         <h1 className="text-xl font-bold text-amber-900">
-          🍽️ KhanaBuddy Order Assistant
+           KhanaBuddy Order Assistant
         </h1>
         <button
           onClick={handleGoBack}
