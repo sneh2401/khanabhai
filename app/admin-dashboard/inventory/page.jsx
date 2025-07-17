@@ -7,49 +7,277 @@ export default function InventoryPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [updateAlert, setUpdateAlert] = useState("");
   const [formData, setFormData] = useState({
     item_name: "",
     price: "",
     quantity: "",
-    min_stock: "5" // Minimum stock level for restock warning
+    min_stock: "5"
   });
+
+  // ✅ Enhanced: Item name mapping for dashboard compatibility
+  const getDisplayName = (itemName) => {
+    const nameMap = {
+      'pizza': 'Margherita Pizza',
+      'burger': 'Chicken Burger', 
+      'fries': 'Fries',
+      'garlic bread': 'Garlic Bread',
+      'pasta': 'Pasta',
+      'beverage': 'Coke',
+      'wrap': 'Wrap',
+      'chicken burger': 'Chicken Burger',
+      'bbq burger': 'BBQ Burger',
+      'onion rings': 'Onion Rings',
+      'loaded fries': 'Loaded Fries',
+      'milkshake': 'Milkshake',
+      'smoothie': 'Smoothie',
+      'coke': 'Coke'
+    };
+    return nameMap[itemName.toLowerCase()] || itemName;
+  };
+
+  // ✅ Enhanced: Get current inventory status for dashboard
+  const getCurrentInventoryStatus = () => {
+    return menuItems.reduce((status, item) => {
+      const displayName = getDisplayName(item.item_name);
+      status[displayName] = {
+        quantity: item.quantity || 0,
+        price: item.price || 0,
+        min_stock: item.min_stock || 5,
+        status: getItemStatus(item.quantity, item.min_stock),
+        isOutOfStock: item.quantity === 0,
+        isLowStock: item.quantity < (item.min_stock || 5) && item.quantity > 0
+      };
+      return status;
+    }, {});
+  };
+
+  // ✅ Enhanced: Make getCurrentInventoryStatus globally available
+  useEffect(() => {
+    // Make function available globally for dashboard
+    window.getCurrentInventoryStatus = getCurrentInventoryStatus;
+    
+    return () => {
+      // Clean up global function
+      delete window.getCurrentInventoryStatus;
+    };
+  }, [menuItems]);
 
   // Load menu items from localStorage on component mount
   useEffect(() => {
     loadMenuItems();
   }, []);
 
+  // ✅ Enhanced: Real-time inventory updates integration
+  useEffect(() => {
+    const handleInventoryUpdate = () => {
+      loadMenuItems();
+      setUpdateAlert("📦 Inventory updated from order delivery!");
+      setTimeout(() => setUpdateAlert(""), 3000);
+    };
+
+    const handleAnalyticsUpdate = () => {
+      console.log('Analytics updated, inventory might need refresh');
+    };
+
+    const handleStorageChange = (e) => {
+      if (e.key === 'menu') {
+        loadMenuItems();
+        setUpdateAlert("🔄 Inventory synchronized!");
+        setTimeout(() => setUpdateAlert(""), 3000);
+      }
+    };
+
+    // Enhanced event listeners
+    window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+    window.addEventListener('analyticsUpdated', handleAnalyticsUpdate);
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+      window.removeEventListener('analyticsUpdated', handleAnalyticsUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   const loadMenuItems = () => {
     const stored = localStorage.getItem('menu');
     if (stored) {
       const items = JSON.parse(stored);
-      // ✅ Migrate existing items to include quantity and min_stock
       const migratedItems = items.map(item => ({
         ...item,
-        quantity: item.quantity ?? 10, // Default to 10 if not present
-        min_stock: item.min_stock ?? 5  // Default to 5 if not present
+        quantity: item.quantity ?? 10,
+        min_stock: item.min_stock ?? 5
       }));
       setMenuItems(migratedItems);
-      // Save the migrated data back to localStorage
       localStorage.setItem('menu', JSON.stringify(migratedItems));
     } else {
-      // ✅ Initialize with default items
+      // ✅ Enhanced: Better default items matching dashboard expectations
       const defaultMenu = [
-        { item_id: "1", item_name: "pizza", price: 150.00, quantity: 25, min_stock: 5 },
-        { item_id: "2", item_name: "burger", price: 80.00, quantity: 15, min_stock: 5 },
-        { item_id: "3", item_name: "fries", price: 50.00, quantity: 3, min_stock: 5 },
-        { item_id: "4", item_name: "garlic bread", price: 60.00, quantity: 0, min_stock: 5 },
-        { item_id: "5", item_name: "pasta", price: 120.00, quantity: 8, min_stock: 5 },
-        { item_id: "6", item_name: "salad", price: 90.00, quantity: 12, min_stock: 5 }
+        { item_id: "1", item_name: "Margherita Pizza", price: 150.00, quantity: 25, min_stock: 5 },
+        { item_id: "2", item_name: "Chicken Burger", price: 80.00, quantity: 15, min_stock: 5 },
+        { item_id: "3", item_name: "BBQ Burger", price: 90.00, quantity: 12, min_stock: 5 },
+        { item_id: "4", item_name: "Fries", price: 50.00, quantity: 20, min_stock: 5 },
+        { item_id: "5", item_name: "Loaded Fries", price: 70.00, quantity: 10, min_stock: 5 },
+        { item_id: "6", item_name: "Onion Rings", price: 45.00, quantity: 18, min_stock: 5 },
+        { item_id: "7", item_name: "Garlic Bread", price: 60.00, quantity: 12, min_stock: 5 },
+        { item_id: "8", item_name: "Coke", price: 40.00, quantity: 30, min_stock: 10 },
+        { item_id: "9", item_name: "Milkshake", price: 80.00, quantity: 15, min_stock: 5 },
+        { item_id: "10", item_name: "Smoothie", price: 90.00, quantity: 12, min_stock: 5 }
       ];
       localStorage.setItem('menu', JSON.stringify(defaultMenu));
       setMenuItems(defaultMenu);
     }
   };
 
-  const saveMenuItems = (updatedItems) => {
+  // ✅ ENHANCED: Comprehensive event dispatching system - THE KEY FIX
+  const saveMenuItems = (updatedItems, changeType = 'update', changedItem = null) => {
+    const previousItems = [...menuItems];
+    
+    // Save to localStorage first
     localStorage.setItem('menu', JSON.stringify(updatedItems));
     setMenuItems(updatedItems);
+    
+    // ✅ Enhanced: Detailed event information for dashboard sync
+    const newlyAvailableItems = [];
+    const updatedItemsInfo = [];
+    const removedItems = [];
+    
+    // Process each item for changes
+    updatedItems.forEach(currentItem => {
+      const previousItem = previousItems.find(prev => prev.item_id === currentItem.item_id);
+      const displayName = getDisplayName(currentItem.item_name);
+      
+      if (previousItem) {
+        const wasOutOfStock = previousItem.quantity === 0;
+        const isNowInStock = currentItem.quantity > 0;
+        const quantityChanged = previousItem.quantity !== currentItem.quantity;
+        const priceChanged = previousItem.price !== currentItem.price;
+        
+        // Track newly available items (out of stock -> in stock)
+        if (wasOutOfStock && isNowInStock) {
+          newlyAvailableItems.push({
+            name: displayName,
+            quantity: currentItem.quantity,
+            price: currentItem.price,
+            previousQuantity: previousItem.quantity,
+            isNewItem: false
+          });
+        }
+        
+        // Track all changes for updates
+        if (quantityChanged || priceChanged) {
+          updatedItemsInfo.push({
+            name: displayName,
+            quantity: currentItem.quantity,
+            price: currentItem.price,
+            previousQuantity: previousItem.quantity,
+            previousPrice: previousItem.price,
+            quantityChanged,
+            priceChanged
+          });
+        }
+      } else {
+        // Completely new item added
+        newlyAvailableItems.push({
+          name: displayName,
+          quantity: currentItem.quantity,
+          price: currentItem.price,
+          isNewItem: true
+        });
+      }
+    });
+    
+    // Handle removed items
+    if (changeType === 'delete' && changedItem) {
+      removedItems.push(getDisplayName(changedItem.item_name));
+    }
+    
+    // ✅ CRITICAL: Dispatch ALL required events for dashboard synchronization
+    
+    // 1. Main inventory updated event - ALWAYS dispatch this
+    const inventoryEventDetail = {
+      newlyAvailableItems,
+      updatedItems: updatedItemsInfo,
+      removedItems,
+      allItems: updatedItems.map(item => ({
+        ...item,
+        displayName: getDisplayName(item.item_name)
+      })),
+      changeType,
+      changedItem: changedItem ? {
+        ...changedItem,
+        displayName: getDisplayName(changedItem.item_name)
+      } : null,
+      timestamp: new Date().toISOString()
+    };
+    
+    window.dispatchEvent(new CustomEvent('inventoryUpdated', {
+      detail: inventoryEventDetail
+    }));
+    
+    // 2. Price update event - for price changes
+    const priceChangedItems = updatedItemsInfo.filter(item => item.priceChanged);
+    if (priceChangedItems.length > 0) {
+      window.dispatchEvent(new CustomEvent('pricesUpdated', {
+        detail: {
+          updatedItems: priceChangedItems,
+          newlyAvailableItems: newlyAvailableItems.filter(item => !item.isNewItem),
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+    
+    // 3. Quantity update event - for quantity changes
+    const quantityChangedItems = updatedItemsInfo.filter(item => item.quantityChanged);
+    if (quantityChangedItems.length > 0) {
+      window.dispatchEvent(new CustomEvent('quantityUpdated', {
+        detail: {
+          updatedItems: quantityChangedItems,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+    
+    // 4. Item added event - for new items
+    if (changeType === 'add' && changedItem) {
+      window.dispatchEvent(new CustomEvent('inventoryItemAdded', {
+        detail: {
+          newlyAvailableItems: [{
+            name: getDisplayName(changedItem.item_name),
+            quantity: changedItem.quantity,
+            price: changedItem.price,
+            isNewItem: true
+          }],
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+    
+    // 5. Item removed event - for deleted items
+    if (changeType === 'delete' && changedItem) {
+      window.dispatchEvent(new CustomEvent('inventoryItemRemoved', {
+        detail: {
+          removedItems: [getDisplayName(changedItem.item_name)],
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+    
+    // ✅ Enhanced: Console logging for debugging
+    console.log('✅ All inventory events dispatched successfully:', {
+      changeType,
+      eventsDispatched: [
+        'inventoryUpdated',
+        priceChangedItems.length > 0 ? 'pricesUpdated' : null,
+        quantityChangedItems.length > 0 ? 'quantityUpdated' : null,
+        changeType === 'add' ? 'inventoryItemAdded' : null,
+        changeType === 'delete' ? 'inventoryItemRemoved' : null
+      ].filter(Boolean),
+      newlyAvailableItems: newlyAvailableItems.length,
+      updatedItems: updatedItemsInfo.length,
+      removedItems: removedItems.length
+    });
   };
 
   const generateId = () => {
@@ -75,7 +303,6 @@ export default function InventoryPage() {
     }
   };
 
-  // ✅ New function for row background colors based on status
   const getRowBackgroundColor = (status) => {
     switch (status) {
       case "Available":
@@ -102,51 +329,79 @@ export default function InventoryPage() {
     }
   };
 
+  // ✅ Enhanced: Add item with proper event dispatching
   const handleAddItem = (e) => {
     e.preventDefault();
     if (!formData.item_name || !formData.price || !formData.quantity) return;
 
     const newItem = {
       item_id: generateId(),
-      item_name: formData.item_name.toLowerCase(),
+      item_name: formData.item_name,
       price: parseFloat(formData.price),
       quantity: parseInt(formData.quantity),
       min_stock: parseInt(formData.min_stock)
     };
 
     const updatedItems = [...menuItems, newItem];
-    saveMenuItems(updatedItems);
+    
+    // ✅ CRITICAL: Proper event dispatching for new items
+    saveMenuItems(updatedItems, 'add', newItem);
     
     setFormData({ item_name: "", price: "", quantity: "", min_stock: "5" });
     setIsAddModalOpen(false);
+    setUpdateAlert(`🎉 "${newItem.item_name}" added to inventory with ${newItem.quantity} units!`);
+    setTimeout(() => setUpdateAlert(""), 3000);
   };
 
+  // ✅ Enhanced: Edit item with proper event dispatching
   const handleEditItem = (e) => {
     e.preventDefault();
     if (!formData.item_name || !formData.price || !formData.quantity) return;
 
+    const previousQuantity = editingItem.quantity;
+    const newQuantity = parseInt(formData.quantity);
+    const wasOutOfStock = previousQuantity === 0;
+    const isNowInStock = newQuantity > 0;
+
+    const updatedItem = {
+      ...editingItem,
+      item_name: formData.item_name,
+      price: parseFloat(formData.price),
+      quantity: newQuantity,
+      min_stock: parseInt(formData.min_stock)
+    };
+
     const updatedItems = menuItems.map(item =>
-      item.item_id === editingItem.item_id
-        ? {
-            ...item,
-            item_name: formData.item_name.toLowerCase(),
-            price: parseFloat(formData.price),
-            quantity: parseInt(formData.quantity),
-            min_stock: parseInt(formData.min_stock)
-          }
-        : item
+      item.item_id === editingItem.item_id ? updatedItem : item
     );
 
-    saveMenuItems(updatedItems);
+    // ✅ CRITICAL: Proper event dispatching for edited items
+    saveMenuItems(updatedItems, 'edit', updatedItem);
+    
     setFormData({ item_name: "", price: "", quantity: "", min_stock: "5" });
     setIsEditModalOpen(false);
     setEditingItem(null);
+    
+    if (wasOutOfStock && isNowInStock) {
+      setUpdateAlert(`🎉 "${formData.item_name}" is now back in stock with ${newQuantity} units!`);
+    } else {
+      setUpdateAlert(`✅ "${formData.item_name}" updated successfully!`);
+    }
+    
+    setTimeout(() => setUpdateAlert(""), 3000);
   };
 
+  // ✅ Enhanced: Delete item with proper event dispatching
   const handleDeleteItem = (itemId) => {
-    if (window.confirm('Are you sure you want to delete this item?')) {
+    const itemToDelete = menuItems.find(item => item.item_id === itemId);
+    if (window.confirm(`Are you sure you want to delete "${itemToDelete?.item_name}"?`)) {
       const updatedItems = menuItems.filter(item => item.item_id !== itemId);
-      saveMenuItems(updatedItems);
+      
+      // ✅ CRITICAL: Proper event dispatching for deleted items
+      saveMenuItems(updatedItems, 'delete', itemToDelete);
+      
+      setUpdateAlert(`🗑️ "${itemToDelete?.item_name}" removed from inventory!`);
+      setTimeout(() => setUpdateAlert(""), 3000);
     }
   };
 
@@ -155,8 +410,8 @@ export default function InventoryPage() {
     setFormData({
       item_name: item.item_name,
       price: item.price.toString(),
-      quantity: (item.quantity || 0).toString(), // ✅ Handle undefined quantity
-      min_stock: (item.min_stock || 5).toString() // ✅ Handle undefined min_stock
+      quantity: (item.quantity || 0).toString(),
+      min_stock: (item.min_stock || 5).toString()
     });
     setIsEditModalOpen(true);
   };
@@ -168,7 +423,6 @@ export default function InventoryPage() {
     setFormData({ item_name: "", price: "", quantity: "", min_stock: "5" });
   };
 
-  // ✅ Helper function to display quantity based on availability
   const displayQuantity = (item) => {
     const status = getItemStatus(item.quantity, item.min_stock);
     if (status === "Not Available") {
@@ -184,12 +438,25 @@ export default function InventoryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
-      {/* ================= NAVBAR COMPONENT ================= */}
       <AdminNavbar />
 
-      {/* ================= MAIN CONTENT ================= */}
       <main className="max-w-7xl mx-auto py-8 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+
+          {/* ✅ Enhanced: Update Alert with better styling */}
+          {updateAlert && (
+            <div className="mb-6 p-4 bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg border border-amber-200 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="text-lg">{updateAlert}</div>
+                <button 
+                  onClick={() => setUpdateAlert("")}
+                  className="ml-auto text-amber-600 hover:text-amber-800 transition-colors duration-200"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Page Header */}
           <div className="mb-8 bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl p-6 border border-amber-200/50">
@@ -199,18 +466,23 @@ export default function InventoryPage() {
                   Inventory Management
                 </h2>
                 <p className="text-sm text-amber-700 font-medium mt-1">
-                  Manage your restaurant menu items and stock levels
+                  Manage your restaurant menu items and stock levels • Real-time sync enabled
                 </p>
               </div>
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="group bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white px-6 py-3 rounded-2xl font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
-              >
-                <svg className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
-                </svg>
-                Add New Item
-              </button>
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-green-700 font-medium bg-white/80 backdrop-blur-sm rounded-2xl px-4 py-2 border border-green-200/50">
+                  ⚡ Real-time Events Active
+                </div>
+                <button
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="group bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white px-6 py-3 rounded-2xl font-semibold flex items-center gap-2 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-0.5"
+                >
+                  <svg className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd"/>
+                  </svg>
+                  Add New Item
+                </button>
+              </div>
             </div>
           </div>
 
@@ -294,7 +566,7 @@ export default function InventoryPage() {
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-2xl border border-amber-200/50 overflow-hidden">
             <div className="px-8 py-6 border-b border-amber-200/50 bg-gradient-to-r from-amber-50/50 to-orange-50/50">
               <h3 className="text-2xl font-bold text-amber-900">Menu Items</h3>
-              <p className="text-sm text-amber-700 font-medium">Manage your restaurant inventory and stock levels</p>
+              <p className="text-sm text-amber-700 font-medium">Manage your restaurant inventory and stock levels • Events dispatch to dashboard</p>
             </div>
 
             <div className="overflow-x-auto">
