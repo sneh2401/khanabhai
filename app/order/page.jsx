@@ -75,7 +75,6 @@ export default function OrderPage() {
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
-<<<<<<< HEAD
     
     // ADDED DELAY: Start listening after 3 seconds to let AI finish speaking
     setTimeout(() => {
@@ -103,12 +102,6 @@ export default function OrderPage() {
       }, 200);
     }
   }, [done, orderList]);
-=======
-    if (!showProceedButton) startListening(); // Don't start if proceed button is shown
-
-    return () => recognition.stop();
-  }, [done, showProceedButton]); // Added showProceedButton as dependency
->>>>>>> 24b5808c8140c9e1867329432731d5820ca99fdc
 
   const startListening = () => {
     try {
@@ -124,9 +117,7 @@ export default function OrderPage() {
     router.push("/");
   };
 
-<<<<<<< HEAD
   // FIXED LOGIC FOR HANDLING ADDED/REMOVED SPEECH
-=======
   // Function to handle proceeding to payment
   const handleProceedToPayment = () => {
     recognitionRef.current?.stop();
@@ -149,7 +140,6 @@ export default function OrderPage() {
   };
 
   // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
->>>>>>> 24b5808c8140c9e1867329432731d5820ca99fdc
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
