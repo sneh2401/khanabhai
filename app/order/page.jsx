@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-// best version till know 
 const END_PHRASES = [
   "my order is done",
   "place order",
   "order done",
   "submit order",
   "finish order",
+  "murder is done"
 ];
 
 const menuItems = {
@@ -18,7 +18,7 @@ const menuItems = {
   salad: 89,
   burger: 129,
   pizza: 199,
-  "coca cola": 50,
+  "coca-Cola": 50,
   "cold coffee": 90,
 };
 
@@ -33,7 +33,7 @@ export default function OrderPage() {
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
-  const [showProceedButton, setShowProceedButton] = useState(false); // New state for proceed button
+  const [showProceedButton, setShowProceedButton] = useState(false);
 
   // AI voice response
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function OrderPage() {
     }
   }, [messages]);
 
-  // SpeechRecognition setup with DELAY to prevent self-recognition
+  // SpeechRecognition setup
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SpeechRecognition =
@@ -64,46 +64,29 @@ export default function OrderPage() {
       handleVoiceInput(text);
     };
     recognition.onend = () => {
-      if (!done) {
-        // Add delay before restarting to prevent picking up AI's own voice
+      // FIXED: Only restart if not done and proceed button not shown
+      if (!done && !showProceedButton && listeningRef.current) {
         setTimeout(() => {
           startListening();
         }, 1000);
       }
-      if (!done && !showProceedButton) startListening(); // Don't restart if proceed button is shown
     };
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
-    
-    // ADDED DELAY: Start listening after 3 seconds to let AI finish speaking
+
     setTimeout(() => {
       startListening();
     }, 3000);
 
-    return () => recognition.stop();
-  }, [done]);
-
-  // MODIFIED: Clear chat history and show only thank you message
-  useEffect(() => {
-    if (done) {
-      setTimeout(() => {
-        const total = orderList.reduce(
-          (sum, item) => sum + item.quantity * item.price,
-          0
-        );
-        // CLEAR CHAT HISTORY - Only show thank you message
-        setMessages([
-          {
-            from: "ai",
-            text: `Your order is placed! Total bill is ₹${total}. Thank you!`,
-          },
-        ]);
-      }, 200);
-    }
-  }, [done, orderList]);
+    return () => {
+      recognition.stop();
+      listeningRef.current = false;
+    };
+  }, [done, showProceedButton]); // Added showProceedButton dependency
 
   const startListening = () => {
+    if (showProceedButton || done) return; // Don't start if order is done
     try {
       recognitionRef.current?.start();
       listeningRef.current = true;
@@ -117,46 +100,70 @@ export default function OrderPage() {
     router.push("/");
   };
 
-  // FIXED LOGIC FOR HANDLING ADDED/REMOVED SPEECH
-  // Function to handle proceeding to payment
   const handleProceedToPayment = () => {
     recognitionRef.current?.stop();
     window.speechSynthesis.cancel();
     listeningRef.current = false;
-    
-    // Calculate total and pass order data to payment page
+
     const total = orderList.reduce(
       (sum, item) => sum + item.quantity * item.price,
       0
     );
-    
-    // You can pass the order data via query params or localStorage
-    localStorage.setItem('orderData', JSON.stringify({
-      items: orderList,
-      total: total
-    }));
-    
-    router.push("/payment"); // Navigate to payment page
+
+    localStorage.setItem(
+      "orderData",
+      JSON.stringify({
+        items: orderList,
+        total: total,
+      })
+    );
+
+    router.push("/payment");
   };
 
-  // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
-    // 1. End order - Show proceed button instead of completing order
+    // MOST RELIABLE FIX: End order with direct state access
     if (END_PHRASES.some((p) => lower.includes(p))) {
       recognitionRef.current?.stop();
-      setShowProceedButton(true); // Show proceed button
-      setMessages((m) => [
-        ...m,
+      listeningRef.current = false;
+      setShowProceedButton(true);
+      setDone(true);
+
+      // Add user message
+      setMessages((prevMessages) => [
+        ...prevMessages,
         { from: "user", text: msg },
-        {
-          from: "ai",
-          text: ` Great! Your order is ready. Please click the Proceed button to go to payment.`,
-        },
       ]);
+
+      // Use functional update to get current orderList value
+      setOrderList((currentOrderList) => {
+        // Calculate total from current order list
+        const total = currentOrderList.reduce(
+          (sum, item) => sum + item.quantity * item.price,
+          0
+        );
+
+        console.log("Current Order List:", currentOrderList); // Debug line
+        console.log("Calculated Total:", total); // Debug line
+
+        // Update messages with correct total
+        setMessages([
+          {
+            from: "ai",
+            text: `Thank you for your order ! Your bill amount is ₹${total}. Now proceed to payment.`,
+          },
+        ]);
+
+        return currentOrderList;
+      });
+
       return;
     }
+
+    // Don't process any other inputs if order is done
+    if (done || showProceedButton) return;
 
     // 2. Price query
     const priceQuery = Object.keys(menuItems).find(
@@ -274,7 +281,7 @@ export default function OrderPage() {
                 ...msgs,
                 { from: "ai", text: `${name} is removed` },
               ]);
-            }, 500); // Increased delay
+            }, 500);
           } else {
             if (existingIndex !== -1) {
               updated[existingIndex].quantity += quantity;
@@ -287,10 +294,12 @@ export default function OrderPage() {
                 ...msgs,
                 { from: "ai", text: `${name} is added` },
               ]);
-            }, 500); // Increased delay
+            }, 500);
           }
         }
 
+        // ADDED DEBUG: Log the updated order list
+        console.log("Updated Order List:", updated);
         return updated;
       });
     } else {
@@ -299,12 +308,12 @@ export default function OrderPage() {
           ...msgs,
           { from: "ai", text: "I didn't understand, say again" },
         ]);
-      }, 500); // Increased delay
+      }, 500);
     }
   };
 
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || done || showProceedButton) return;
     handleVoiceInput(input);
     setInput("");
   };
