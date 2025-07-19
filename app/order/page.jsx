@@ -31,6 +31,7 @@ export default function OrderPage() {
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
+  const [showProceedButton, setShowProceedButton] = useState(false); // New state for proceed button
 
   // AI voice response - This will speak "added" when the message is added
   useEffect(() => {
@@ -61,32 +62,15 @@ export default function OrderPage() {
       handleVoiceInput(text);
     };
     recognition.onend = () => {
-      if (!done) startListening();
+      if (!done && !showProceedButton) startListening(); // Don't restart if proceed button is shown
     };
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
-    startListening();
+    if (!showProceedButton) startListening(); // Don't start if proceed button is shown
 
     return () => recognition.stop();
-  }, [done]);
-
-  useEffect(() => {
-    if (done) {
-      setTimeout(() => {
-        const total = orderList.reduce(
-          (sum, item) => sum + item.quantity * item.price,
-          0
-        );
-        setMessages([
-          {
-            from: "ai",
-            text: ` Your order is placed! Total bill is ₹${total}. Thank you `,
-          },
-        ]);
-      }, 200);
-    }
-  }, [done, orderList]);
+  }, [done, showProceedButton]); // Added showProceedButton as dependency
 
   const startListening = () => {
     try {
@@ -102,14 +86,43 @@ export default function OrderPage() {
     router.push("/");
   };
 
+  // Function to handle proceeding to payment
+  const handleProceedToPayment = () => {
+    recognitionRef.current?.stop();
+    window.speechSynthesis.cancel();
+    listeningRef.current = false;
+    
+    // Calculate total and pass order data to payment page
+    const total = orderList.reduce(
+      (sum, item) => sum + item.quantity * item.price,
+      0
+    );
+    
+    // You can pass the order data via query params or localStorage
+    localStorage.setItem('orderData', JSON.stringify({
+      items: orderList,
+      total: total
+    }));
+    
+    router.push("/payment"); // Navigate to payment page
+  };
+
   // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
-    // 1. End order
+    // 1. End order - Show proceed button instead of completing order
     if (END_PHRASES.some((p) => lower.includes(p))) {
       recognitionRef.current?.stop();
-      setDone(true);
+      setShowProceedButton(true); // Show proceed button
+      setMessages((m) => [
+        ...m,
+        { from: "user", text: msg },
+        {
+          from: "ai",
+          text: ` Great! Your order is ready. Please click the Proceed button to go to payment.`,
+        },
+      ]);
       return;
     }
 
@@ -287,22 +300,34 @@ export default function OrderPage() {
             ))}
           </div>
 
-          {!done && (
-            <div className="flex gap-2 mt-4">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                placeholder="Type or just speak..."
-                className="flex-1 px-4 py-2 border border-amber-300 rounded-xl focus:ring-2 focus:ring-orange-300 outline-none"
-              />
+          {/* Show Proceed Button when order is done */}
+          {showProceedButton ? (
+            <div className="mt-4 text-center">
               <button
-                onClick={handleSend}
-                className="bg-gradient-to-r from-orange-500 to-amber-400 text-white font-semibold px-5 py-2 rounded-xl shadow hover:scale-105 transition"
+                onClick={handleProceedToPayment}
+                className="bg-gradient-to-r from-green-500 to-emerald-400 text-white font-bold px-8 py-3 rounded-xl shadow-lg hover:scale-105 transition transform"
               >
-                Send
+                🛒 Proceed to Payment
               </button>
             </div>
+          ) : (
+            !done && (
+              <div className="flex gap-2 mt-4">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                  placeholder="Type or just speak..."
+                  className="flex-1 px-4 py-2 border border-amber-300 rounded-xl focus:ring-2 focus:ring-orange-300 outline-none"
+                />
+                <button
+                  onClick={handleSend}
+                  className="bg-gradient-to-r from-orange-500 to-amber-400 text-white font-semibold px-5 py-2 rounded-xl shadow hover:scale-105 transition"
+                >
+                  Send
+                </button>
+              </div>
+            )
           )}
         </section>
 
