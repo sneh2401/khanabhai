@@ -2,13 +2,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+// best version till know 
 const END_PHRASES = [
   "my order is done",
   "place order",
   "order done",
   "submit order",
   "finish order",
-  "murder isdone",
 ];
 
 const menuItems = {
@@ -18,6 +18,8 @@ const menuItems = {
   salad: 89,
   burger: 129,
   pizza: 199,
+  "coca cola": 50,
+  "cold coffee": 90,
 };
 
 export default function OrderPage() {
@@ -26,13 +28,13 @@ export default function OrderPage() {
   const listeningRef = useRef(false);
 
   const [messages, setMessages] = useState([
-    { from: "ai", text: " Hi , What would you like to order ?" },
+    { from: "ai", text: "Hi, What would you like to order?" },
   ]);
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
 
-  // AI voice response - This will speak "added" when the message is added
+  // AI voice response
   useEffect(() => {
     if (typeof window === "undefined") return;
     const last = messages[messages.length - 1];
@@ -43,7 +45,7 @@ export default function OrderPage() {
     }
   }, [messages]);
 
-  // SpeechRecognition setup
+  // SpeechRecognition setup with DELAY to prevent self-recognition
   useEffect(() => {
     if (typeof window === "undefined") return;
     const SpeechRecognition =
@@ -61,16 +63,26 @@ export default function OrderPage() {
       handleVoiceInput(text);
     };
     recognition.onend = () => {
-      if (!done) startListening();
+      if (!done) {
+        // Add delay before restarting to prevent picking up AI's own voice
+        setTimeout(() => {
+          startListening();
+        }, 1000);
+      }
     };
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
-    startListening();
+    
+    // ADDED DELAY: Start listening after 3 seconds to let AI finish speaking
+    setTimeout(() => {
+      startListening();
+    }, 3000);
 
     return () => recognition.stop();
   }, [done]);
 
+  // MODIFIED: Clear chat history and show only thank you message
   useEffect(() => {
     if (done) {
       setTimeout(() => {
@@ -78,10 +90,11 @@ export default function OrderPage() {
           (sum, item) => sum + item.quantity * item.price,
           0
         );
+        // CLEAR CHAT HISTORY - Only show thank you message
         setMessages([
           {
             from: "ai",
-            text: ` Your order is placed! Total bill is ₹${total}. Thank you `,
+            text: `Your order is placed! Total bill is ₹${total}. Thank you!`,
           },
         ]);
       }, 200);
@@ -102,7 +115,7 @@ export default function OrderPage() {
     router.push("/");
   };
 
-  // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
+  // FIXED LOGIC FOR HANDLING ADDED/REMOVED SPEECH
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
@@ -123,12 +136,13 @@ export default function OrderPage() {
         { from: "user", text: msg },
         {
           from: "ai",
-          text: ` The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
+          text: `The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
         },
       ]);
       return;
     }
 
+    // Add user message first
     setMessages((m) => [...m, { from: "user", text: msg }]);
 
     // Number parsing
@@ -143,6 +157,11 @@ export default function OrderPage() {
       eight: 8,
       nine: 9,
       ten: 10,
+      n1: 1,
+      n2: 2,
+      n3: 3,
+      n4: 4,
+      n5: 5,
     };
 
     const isRemove = lower.includes("remove") || lower.includes("cancel");
@@ -179,67 +198,76 @@ export default function OrderPage() {
     });
 
     if (ordersToAdd.length > 0) {
-      let aiResponses = [];
+      // Update order list
       setOrderList((prev) => {
         let updated = [...prev];
 
         for (const { name, quantity } of ordersToAdd) {
           const price = menuItems[name];
           const existingIndex = updated.findIndex((i) => i.name === name);
-          const existing = updated.find((i) => i.name === name);
 
           if (isRemove) {
-            if (!existing) {
-              aiResponses.push(` You don't have any ${name} in your order. removed`);
-              continue;
-            }
-            const prevQty = existing.quantity;
-            if (quantity > prevQty) {
-              aiResponses.push(
-                ` You only have ${prevQty} ${name}${prevQty > 1 ? "s" : ""}, cannot remove ${quantity}. removed`
-              );
+            if (existingIndex === -1) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `You don't have any ${name} in your order.`,
+                },
+              ]);
               continue;
             }
 
-            // Now we can remove safely
+            const existing = updated[existingIndex];
+            const prevQty = existing.quantity;
+
+            if (quantity > prevQty) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `let's check ....`,
+                },
+              ]);
+              continue;
+            }
+
             updated[existingIndex].quantity -= quantity;
             if (updated[existingIndex].quantity <= 0) {
               updated.splice(existingIndex, 1);
-              if (quantity === prevQty) {
-                aiResponses.push(
-                  ` Removed all ${name} from your order. removed`
-                );
-              } else {
-                aiResponses.push(
-                  ` Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
-                );
-              }
-            } else {
-              aiResponses.push(
-                `Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
-              );
             }
+
+            setTimeout(() => {
+              setMessages((msgs) => [
+                ...msgs,
+                { from: "ai", text: `${name} is removed` },
+              ]);
+            }, 500); // Increased delay
           } else {
-            // ADD logic - This will trigger voice saying "added"
-            if (existing) {
+            if (existingIndex !== -1) {
               updated[existingIndex].quantity += quantity;
             } else {
               updated.push({ name, price, quantity });
             }
-            aiResponses.push("added");
+
+            setTimeout(() => {
+              setMessages((msgs) => [
+                ...msgs,
+                { from: "ai", text: `${name} is added` },
+              ]);
+            }, 500); // Increased delay
           }
         }
 
         return updated;
       });
-
-      // Add AI responses ONCE - This will trigger the voice response
-      if (aiResponses.length > 0) {
+    } else {
+      setTimeout(() => {
         setMessages((msgs) => [
           ...msgs,
-          ...aiResponses.map((text) => ({ from: "ai", text })),
+          { from: "ai", text: "I didn't understand, say again" },
         ]);
-      }
+      }, 500); // Increased delay
     }
   };
 
@@ -254,7 +282,7 @@ export default function OrderPage() {
       {/* Header */}
       <header className="bg-white/90 backdrop-blur shadow-md sticky top-0 z-20 py-4 px-6 flex justify-between items-center border-b border-amber-200">
         <h1 className="text-xl font-bold text-amber-900">
-           KhanaBuddy Order Assistant
+          🍽️ KhanaBuddy Order Assistant
         </h1>
         <button
           onClick={handleGoBack}
