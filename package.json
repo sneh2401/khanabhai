@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@vapi-ai/web": "^2.3.8",
+    "@yudiel/react-qr-scanner": "^2.3.1",
     "next": "^15.4.1",
+    "qrcode": "^1.5.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^3.1.0"
