@@ -86,6 +86,7 @@ export default function PaymentPage() {
     }, 500);
   };
 
+  // Updated function: Show QR for 6 seconds, then proceed
   const handleStartScan = () => {
     setShowQR(true);
     let progress = 0;
@@ -94,10 +95,10 @@ export default function PaymentPage() {
       setPaymentProgress(progress);
       if (progress >= 100) {
         clearInterval(interval);
-        // Auto-progress to final confirmation after QR is ready
+        // Display QR code for 6 seconds before auto-confirmation
         setTimeout(() => {
           setQrScanned(true);
-        }, 2000);
+        }, 6000); // Changed from 2000ms to 6000ms (6 seconds)
       }
     }, 200);
   };
@@ -375,7 +376,7 @@ export default function PaymentPage() {
                     </ol>
 
                     <div className="text-center text-sm text-green-600 italic">
-                      ⏳ Auto-confirming payment in a few seconds...
+                      ⏳ Auto-confirming payment in 6 seconds...
                     </div>
                   </div>
                 </div>

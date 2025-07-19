@@ -8,7 +8,7 @@ const END_PHRASES = [
   "order done",
   "submit order",
   "finish order",
-  "murder isdone",
+  "murder is done"
 ];
 
 const menuItems = {
@@ -18,6 +18,8 @@ const menuItems = {
   salad: 89,
   burger: 129,
   pizza: 199,
+  "coca-Cola": 50,
+  "cold coffee": 90,
 };
 
 export default function OrderPage() {
@@ -26,14 +28,14 @@ export default function OrderPage() {
   const listeningRef = useRef(false);
 
   const [messages, setMessages] = useState([
-    { from: "ai", text: " Hi , What would you like to order ?" },
+    { from: "ai", text: "Hi, What would you like to order?" },
   ]);
   const [input, setInput] = useState("");
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
-  const [showProceedButton, setShowProceedButton] = useState(false); // New state for proceed button
+  const [showProceedButton, setShowProceedButton] = useState(false);
 
-  // AI voice response - This will speak "added" when the message is added
+  // AI voice response
   useEffect(() => {
     if (typeof window === "undefined") return;
     const last = messages[messages.length - 1];
@@ -62,17 +64,29 @@ export default function OrderPage() {
       handleVoiceInput(text);
     };
     recognition.onend = () => {
-      if (!done && !showProceedButton) startListening(); // Don't restart if proceed button is shown
+      // FIXED: Only restart if not done and proceed button not shown
+      if (!done && !showProceedButton && listeningRef.current) {
+        setTimeout(() => {
+          startListening();
+        }, 1000);
+      }
     };
     recognition.onerror = (e) => console.warn("Speech recognition error:", e);
 
     recognitionRef.current = recognition;
-    if (!showProceedButton) startListening(); // Don't start if proceed button is shown
 
-    return () => recognition.stop();
-  }, [done, showProceedButton]); // Added showProceedButton as dependency
+    setTimeout(() => {
+      startListening();
+    }, 3000);
+
+    return () => {
+      recognition.stop();
+      listeningRef.current = false;
+    };
+  }, [done, showProceedButton]); // Added showProceedButton dependency
 
   const startListening = () => {
+    if (showProceedButton || done) return; // Don't start if order is done
     try {
       recognitionRef.current?.start();
       listeningRef.current = true;
@@ -86,45 +100,70 @@ export default function OrderPage() {
     router.push("/");
   };
 
-  // Function to handle proceeding to payment
   const handleProceedToPayment = () => {
     recognitionRef.current?.stop();
     window.speechSynthesis.cancel();
     listeningRef.current = false;
-    
-    // Calculate total and pass order data to payment page
+
     const total = orderList.reduce(
       (sum, item) => sum + item.quantity * item.price,
       0
     );
-    
-    // You can pass the order data via query params or localStorage
-    localStorage.setItem('orderData', JSON.stringify({
-      items: orderList,
-      total: total
-    }));
-    
-    router.push("/payment"); // Navigate to payment page
+
+    localStorage.setItem(
+      "orderData",
+      JSON.stringify({
+        items: orderList,
+        total: total,
+      })
+    );
+
+    router.push("/payment");
   };
 
-  // LOGIC FOR HANDLING ADDED/REMOVED SPEECH
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
-    // 1. End order - Show proceed button instead of completing order
+    // MOST RELIABLE FIX: End order with direct state access
     if (END_PHRASES.some((p) => lower.includes(p))) {
       recognitionRef.current?.stop();
-      setShowProceedButton(true); // Show proceed button
-      setMessages((m) => [
-        ...m,
+      listeningRef.current = false;
+      setShowProceedButton(true);
+      setDone(true);
+
+      // Add user message
+      setMessages((prevMessages) => [
+        ...prevMessages,
         { from: "user", text: msg },
-        {
-          from: "ai",
-          text: ` Great! Your order is ready. Please click the Proceed button to go to payment.`,
-        },
       ]);
+
+      // Use functional update to get current orderList value
+      setOrderList((currentOrderList) => {
+        // Calculate total from current order list
+        const total = currentOrderList.reduce(
+          (sum, item) => sum + item.quantity * item.price,
+          0
+        );
+
+        console.log("Current Order List:", currentOrderList); // Debug line
+        console.log("Calculated Total:", total); // Debug line
+
+        // Update messages with correct total
+        setMessages([
+          {
+            from: "ai",
+            text: `Thank you for your order ! Your bill amount is ₹${total}. Now proceed to payment.`,
+          },
+        ]);
+
+        return currentOrderList;
+      });
+
       return;
     }
+
+    // Don't process any other inputs if order is done
+    if (done || showProceedButton) return;
 
     // 2. Price query
     const priceQuery = Object.keys(menuItems).find(
@@ -136,12 +175,13 @@ export default function OrderPage() {
         { from: "user", text: msg },
         {
           from: "ai",
-          text: ` The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
+          text: `The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
         },
       ]);
       return;
     }
 
+    // Add user message first
     setMessages((m) => [...m, { from: "user", text: msg }]);
 
     // Number parsing
@@ -156,6 +196,11 @@ export default function OrderPage() {
       eight: 8,
       nine: 9,
       ten: 10,
+      n1: 1,
+      n2: 2,
+      n3: 3,
+      n4: 4,
+      n5: 5,
     };
 
     const isRemove = lower.includes("remove") || lower.includes("cancel");
@@ -192,72 +237,83 @@ export default function OrderPage() {
     });
 
     if (ordersToAdd.length > 0) {
-      let aiResponses = [];
+      // Update order list
       setOrderList((prev) => {
         let updated = [...prev];
 
         for (const { name, quantity } of ordersToAdd) {
           const price = menuItems[name];
           const existingIndex = updated.findIndex((i) => i.name === name);
-          const existing = updated.find((i) => i.name === name);
 
           if (isRemove) {
-            if (!existing) {
-              aiResponses.push(` You don't have any ${name} in your order. removed`);
-              continue;
-            }
-            const prevQty = existing.quantity;
-            if (quantity > prevQty) {
-              aiResponses.push(
-                ` You only have ${prevQty} ${name}${prevQty > 1 ? "s" : ""}, cannot remove ${quantity}. removed`
-              );
+            if (existingIndex === -1) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `You don't have any ${name} in your order.`,
+                },
+              ]);
               continue;
             }
 
-            // Now we can remove safely
+            const existing = updated[existingIndex];
+            const prevQty = existing.quantity;
+
+            if (quantity > prevQty) {
+              setMessages((msgs) => [
+                ...msgs,
+                {
+                  from: "ai",
+                  text: `let's check ....`,
+                },
+              ]);
+              continue;
+            }
+
             updated[existingIndex].quantity -= quantity;
             if (updated[existingIndex].quantity <= 0) {
               updated.splice(existingIndex, 1);
-              if (quantity === prevQty) {
-                aiResponses.push(
-                  ` Removed all ${name} from your order. removed`
-                );
-              } else {
-                aiResponses.push(
-                  ` Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
-                );
-              }
-            } else {
-              aiResponses.push(
-                `Removed ${quantity} ${name}${quantity > 1 ? "s" : ""} from your order. removed`
-              );
             }
+
+            setTimeout(() => {
+              setMessages((msgs) => [
+                ...msgs,
+                { from: "ai", text: `${name} is removed` },
+              ]);
+            }, 500);
           } else {
-            // ADD logic - This will trigger voice saying "added"
-            if (existing) {
+            if (existingIndex !== -1) {
               updated[existingIndex].quantity += quantity;
             } else {
               updated.push({ name, price, quantity });
             }
-            aiResponses.push("added");
+
+            setTimeout(() => {
+              setMessages((msgs) => [
+                ...msgs,
+                { from: "ai", text: `${name} is added` },
+              ]);
+            }, 500);
           }
         }
 
+        // ADDED DEBUG: Log the updated order list
+        console.log("Updated Order List:", updated);
         return updated;
       });
-
-      // Add AI responses ONCE - This will trigger the voice response
-      if (aiResponses.length > 0) {
+    } else {
+      setTimeout(() => {
         setMessages((msgs) => [
           ...msgs,
-          ...aiResponses.map((text) => ({ from: "ai", text })),
+          { from: "ai", text: "I didn't understand, say again" },
         ]);
-      }
+      }, 500);
     }
   };
 
   const handleSend = () => {
-    if (!input.trim()) return;
+    if (!input.trim() || done || showProceedButton) return;
     handleVoiceInput(input);
     setInput("");
   };
@@ -267,7 +323,7 @@ export default function OrderPage() {
       {/* Header */}
       <header className="bg-white/90 backdrop-blur shadow-md sticky top-0 z-20 py-4 px-6 flex justify-between items-center border-b border-amber-200">
         <h1 className="text-xl font-bold text-amber-900">
-           KhanaBuddy Order Assistant
+          🍽️ KhanaBuddy Order Assistant
         </h1>
         <button
           onClick={handleGoBack}
