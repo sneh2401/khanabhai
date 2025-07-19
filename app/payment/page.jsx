@@ -98,7 +98,7 @@ export default function PaymentPage() {
         // Display QR code for 6 seconds before auto-confirmation
         setTimeout(() => {
           setQrScanned(true);
-        }, 6000); // Changed from 2000ms to 6000ms (6 seconds)
+        }, 5000); // Changed from 2000ms to 6000ms (6 seconds)
       }
     }, 200);
   };
