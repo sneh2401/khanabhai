@@ -58,18 +58,18 @@ export default function PaymentPage() {
   // Handle customer form submission with auto-progression
   const handleCustomerFormSubmit = (e) => {
     e.preventDefault();
-    
+
     // Validate customer details
     if (!customerDetails.name.trim()) {
       alert("Please enter your full name");
       return;
     }
-    
+
     if (!customerDetails.phone.trim()) {
       alert("Please enter your phone number");
       return;
     }
-    
+
     // Strict 10-digit validation only
     if (!/^[0-9]{10}$/.test(customerDetails.phone.trim())) {
       alert("Please enter a valid 10-digit mobile number");
@@ -79,7 +79,7 @@ export default function PaymentPage() {
     // Auto-progress: Move to QR generation and start immediately
     setShowCustomerForm(false);
     generateQRCode();
-    
+
     // Auto-start QR generation after a brief delay
     setTimeout(() => {
       handleStartScan();
@@ -231,7 +231,10 @@ export default function PaymentPage() {
           {showCustomerForm ? (
             <div className="space-y-6">
               <div className="bg-rose-50 border border-rose-100 rounded-xl p-6">
-                <form onSubmit={handleCustomerFormSubmit} className="max-w-md mx-auto space-y-6">
+                <form
+                  onSubmit={handleCustomerFormSubmit}
+                  className="max-w-md mx-auto space-y-6"
+                >
                   <div className="text-center mb-6">
                     <div className="text-6xl mb-4">👤</div>
                     <h3 className="text-2xl font-bold text-amber-900">
@@ -270,7 +273,9 @@ export default function PaymentPage() {
                       value={customerDetails.phone}
                       onChange={(e) => {
                         // Only allow numbers and limit to exactly 10 digits
-                        const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                        const value = e.target.value
+                          .replace(/\D/g, "")
+                          .slice(0, 10);
                         setCustomerDetails({
                           ...customerDetails,
                           phone: value,
@@ -302,8 +307,12 @@ export default function PaymentPage() {
                 {!showQR ? (
                   <div className="text-center text-amber-600">
                     <div className="animate-pulse text-6xl mb-4">⚡</div>
-                    <p className="font-semibold text-lg">Processing Details...</p>
-                    <p className="text-sm">Automatically generating your payment QR</p>
+                    <p className="font-semibold text-lg">
+                      Processing Details...
+                    </p>
+                    <p className="text-sm">
+                      Automatically generating your payment QR
+                    </p>
                   </div>
                 ) : qrCodeImage ? (
                   <div className="bg-white p-4 rounded-2xl shadow-lg">
@@ -316,7 +325,9 @@ export default function PaymentPage() {
                 ) : (
                   <div className="text-center text-amber-600">
                     <div className="animate-spin text-4xl mb-2">🔄</div>
-                    <p className="font-semibold">Generating secure QR code...</p>
+                    <p className="font-semibold">
+                      Generating secure QR code...
+                    </p>
                   </div>
                 )}
               </div>
@@ -325,8 +336,12 @@ export default function PaymentPage() {
               {showQR && paymentProgress > 0 && paymentProgress < 100 && (
                 <div className="bg-amber-100 rounded-xl p-4">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-amber-700 font-semibold">🔒 Securing Payment</span>
-                    <span className="text-sm text-amber-600">{paymentProgress}%</span>
+                    <span className="text-amber-700 font-semibold">
+                      🔒 Securing Payment
+                    </span>
+                    <span className="text-sm text-amber-600">
+                      {paymentProgress}%
+                    </span>
                   </div>
                   <div className="w-full bg-amber-200 rounded-full h-2">
                     <div
@@ -348,7 +363,9 @@ export default function PaymentPage() {
                   </div>
 
                   <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                    <h4 className="font-bold text-green-700 mb-2">📲 Scan Instructions:</h4>
+                    <h4 className="font-bold text-green-700 mb-2">
+                      📲 Scan Instructions:
+                    </h4>
                     <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside mb-4">
                       <li>Open your phone's camera app</li>
                       <li>Point at the QR code above</li>
@@ -356,7 +373,7 @@ export default function PaymentPage() {
                       <li>You'll see "Payment Completed Successfully"</li>
                       <li>Wait for automatic confirmation below</li>
                     </ol>
-                    
+
                     <div className="text-center text-sm text-green-600 italic">
                       ⏳ Auto-confirming payment in a few seconds...
                     </div>
@@ -366,48 +383,62 @@ export default function PaymentPage() {
             </div>
           ) : (
             /* Step 4: Final Confirmation - Simplified */
-            /* Step 4: Final Confirmation - Fixed Layout */
-<div className="space-y-6">
-  <div className="bg-rose-50 border border-rose-100 rounded-xl p-6 overflow-hidden">
-    <div className="flex items-center justify-center min-h-[300px]">
-      <div className="text-center space-y-4 w-full max-w-sm mx-auto">
-        <div className="text-5xl mb-3">🎉</div>
-        <h3 className="text-xl font-bold text-green-600 mb-3">
-          Payment Successful!
-        </h3>
-        <p className="text-sm text-green-700 mb-4 px-2">
-          Your payment has been completed successfully. Ready to send your order to the kitchen?
-        </p>
+            <div className="space-y-6">
+              <div className="bg-rose-50 border border-rose-100 rounded-xl p-6 overflow-hidden">
+                <div className="flex items-center justify-center min-h-[300px]">
+                  <div className="text-center space-y-4 w-full max-w-sm mx-auto">
+                    <div className="text-5xl mb-3">🎉</div>
+                    <h3 className="text-xl font-bold text-green-600 mb-3">
+                      Payment Successful!
+                    </h3>
+                    <p className="text-sm text-green-700 mb-4 px-2">
+                      Your payment has been completed successfully. Ready to
+                      send your order to the kitchen?
+                    </p>
 
-        {/* Simplified Order Summary - Fixed Container */}
-        <div className="bg-white rounded-xl p-4 border border-amber-200 mx-2">
-          <h4 className="font-bold text-amber-800 mb-3">Order Confirmation</h4>
-          <div className="space-y-2 text-left text-sm">
-            <p><strong>Customer:</strong> {customerDetails.name}</p>
-            <p><strong>Phone:</strong> {customerDetails.phone}</p>
-            <p><strong>Total Amount:</strong> <span className="text-lg font-bold text-amber-700">₹{orderData.total}</span></p>
-            <p><strong>Items:</strong> {orderData.items.length} item(s)</p>
-          </div>
-        </div>
+                    {/* Simplified Order Summary - Fixed Container */}
+                    <div className="bg-white rounded-xl p-4 border border-amber-200 mx-2">
+                      <h4 className="font-bold text-amber-800 mb-3">
+                        Order Confirmation
+                      </h4>
+                      <div className="space-y-2 text-left text-sm">
+                        <p>
+                          <strong>Customer:</strong> {customerDetails.name}
+                        </p>
+                        <p>
+                          <strong>Phone:</strong> {customerDetails.phone}
+                        </p>
+                        <p>
+                          <strong>Total Amount:</strong>{" "}
+                          <span className="text-lg font-bold text-amber-700">
+                            ₹{orderData.total}
+                          </span>
+                        </p>
+                        <p>
+                          <strong>Items:</strong> {orderData.items.length}{" "}
+                          item(s)
+                        </p>
+                      </div>
+                    </div>
 
-        <p className="text-gray-600 mb-4 text-sm px-2">
-          Click below to send your order to the kitchen for preparation.
-        </p>
+                    <p className="text-gray-600 mb-4 text-sm px-2">
+                      Click below to send your order to the kitchen for
+                      preparation.
+                    </p>
 
-        {/* Fixed Confirm Button */}
-        <div className="flex justify-center px-2">
-          <button
-            onClick={handleYesClick}
-            className="bg-gradient-to-r from-green-500 to-emerald-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg hover:scale-105 transition transform text-base w-full max-w-xs"
-          >
-            ✅ Confirm Order
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
+                    {/* Fixed Confirm Button */}
+                    <div className="flex justify-center px-2">
+                      <button
+                        onClick={handleYesClick}
+                        className="bg-gradient-to-r from-green-500 to-emerald-400 text-white font-bold px-6 py-2.5 rounded-xl shadow-lg hover:scale-105 transition transform text-base w-full max-w-xs"
+                      >
+                        ✅ Confirm Order
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </section>
 
@@ -419,14 +450,18 @@ export default function PaymentPage() {
           {orderData.items.length > 0 ? (
             <>
               <div className="mb-4">
-                <p className="text-sm text-amber-700 font-semibold mb-2">Order Details:</p>
+                <p className="text-sm text-amber-700 font-semibold mb-2">
+                  Order Details:
+                </p>
                 <ul className="divide-y mb-4 border-t border-orange-100">
                   {orderData.items.map((item, i) => (
                     <li
                       key={i}
                       className="py-3 text-sm flex justify-between text-gray-900"
                     >
-                      <span>{item.quantity} × {item.name}</span>
+                      <span>
+                        {item.quantity} × {item.name}
+                      </span>
                       <span>₹{item.quantity * item.price}</span>
                     </li>
                   ))}
@@ -442,8 +477,12 @@ export default function PaymentPage() {
 
               {customerDetails.name && (
                 <div className="bg-green-50 rounded-xl p-4 mb-4">
-                  <p className="text-sm text-green-700 font-semibold mb-1">Customer:</p>
-                  <p className="text-green-800 font-bold">{customerDetails.name}</p>
+                  <p className="text-sm text-green-700 font-semibold mb-1">
+                    Customer:
+                  </p>
+                  <p className="text-green-800 font-bold">
+                    {customerDetails.name}
+                  </p>
                   <p className="text-green-700">{customerDetails.phone}</p>
                 </div>
               )}
@@ -468,9 +507,12 @@ export default function PaymentPage() {
           <div className="flex items-center gap-4">
             <div className="text-2xl">🔒</div>
             <div>
-              <h3 className="font-bold text-amber-900">Secure KhanaBuddy Payment</h3>
+              <h3 className="font-bold text-amber-900">
+                Secure KhanaBuddy Payment
+              </h3>
               <p className="text-sm text-amber-700">
-                Your order and personal information are protected by advanced encryption.
+                Your order and personal information are protected by advanced
+                encryption.
               </p>
             </div>
           </div>
