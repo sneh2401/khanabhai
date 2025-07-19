@@ -1,26 +1,16 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getInventoryItems } from "../utils/inventoryUtils";
 
 const END_PHRASES = [
   "my order is done",
-  "place order",
+  "place order", 
   "order done",
   "submit order",
   "finish order",
   "murder is done"
 ];
-
-const menuItems = {
-  fries: 59,
-  "garlic bread": 99,
-  pasta: 149,
-  salad: 89,
-  burger: 129,
-  pizza: 199,
-  "coca-Cola": 50,
-  "cold coffee": 90,
-};
 
 export default function OrderPage() {
   const router = useRouter();
@@ -34,6 +24,85 @@ export default function OrderPage() {
   const [done, setDone] = useState(false);
   const [orderList, setOrderList] = useState([]);
   const [showProceedButton, setShowProceedButton] = useState(false);
+
+  // ✅ FLEXIBLE: Smart inventory checking with multiple name variations
+  const checkInventoryItem = (spokenItem) => {
+    try {
+      const inventoryItems = getInventoryItems();
+      console.log('🔍 Looking for:', spokenItem);
+      console.log('📦 Available inventory:', inventoryItems.map(i => `${i.item_name}: qty=${i.quantity}, price=${i.price}`));
+      
+      const spokenLower = spokenItem.toLowerCase();
+      
+      // ✅ Create flexible matching patterns
+      const matchingPatterns = {
+        // If user says "burger" - could match "burger", "chicken burger", "bbq burger", etc.
+        'burger': ['burger', 'chicken burger', 'bbq burger', 'beef burger'],
+        'pizza': ['pizza', 'margherita pizza', 'pepperoni pizza', 'cheese pizza'],
+        'fries': ['fries', 'french fries', 'loaded fries'],
+        'pasta': ['pasta', 'spaghetti', 'penne pasta'],
+        'salad': ['salad', 'caesar salad', 'garden salad'],
+        'garlic bread': ['garlic bread', 'bread'],
+        'coke': ['coke', 'coca cola', 'cola'],
+        'chicken burger': ['chicken burger'],
+        'margherita pizza': ['margherita pizza'],
+        'loaded fries': ['loaded fries'],
+        'onion rings': ['onion rings'],
+        'milkshake': ['milkshake', 'shake'],
+        'smoothie': ['smoothie']
+      };
+
+      // ✅ Find the best match
+      let bestMatch = null;
+      
+      // First try exact match
+      const exactMatch = inventoryItems.find(item => 
+        item.item_name.toLowerCase() === spokenLower
+      );
+      
+      if (exactMatch) {
+        console.log('✅ Exact match found:', exactMatch.item_name);
+        bestMatch = exactMatch;
+      } else {
+        // Try pattern matching
+        for (const [pattern, variations] of Object.entries(matchingPatterns)) {
+          if (spokenLower === pattern || spokenLower.includes(pattern)) {
+            // Look for any inventory item that matches these variations
+            const foundItem = inventoryItems.find(item => 
+              variations.some(variation => 
+                item.item_name.toLowerCase() === variation ||
+                item.item_name.toLowerCase().includes(variation)
+              )
+            );
+            
+            if (foundItem) {
+              console.log(`✅ Pattern match: "${spokenLower}" → "${foundItem.item_name}"`);
+              bestMatch = foundItem;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (bestMatch) {
+        return {
+          found: true,
+          available: bestMatch.quantity > 0,
+          price: bestMatch.price,
+          quantity: bestMatch.quantity,
+          name: bestMatch.item_name,
+          displayName: spokenItem // Keep what user said for display
+        };
+      }
+      
+      console.log('❌ No match found for:', spokenItem);
+      return { found: false };
+      
+    } catch (error) {
+      console.error('❌ Error checking inventory:', error);
+      return { found: false };
+    }
+  };
 
   // AI voice response
   useEffect(() => {
@@ -64,7 +133,6 @@ export default function OrderPage() {
       handleVoiceInput(text);
     };
     recognition.onend = () => {
-      // FIXED: Only restart if not done and proceed button not shown
       if (!done && !showProceedButton && listeningRef.current) {
         setTimeout(() => {
           startListening();
@@ -83,10 +151,10 @@ export default function OrderPage() {
       recognition.stop();
       listeningRef.current = false;
     };
-  }, [done, showProceedButton]); // Added showProceedButton dependency
+  }, [done, showProceedButton]);
 
   const startListening = () => {
-    if (showProceedButton || done) return; // Don't start if order is done
+    if (showProceedButton || done) return;
     try {
       recognitionRef.current?.start();
       listeningRef.current = true;
@@ -124,35 +192,28 @@ export default function OrderPage() {
   const handleVoiceInput = (msg) => {
     const lower = msg.toLowerCase();
 
-    // MOST RELIABLE FIX: End order with direct state access
+    // End order phrases
     if (END_PHRASES.some((p) => lower.includes(p))) {
       recognitionRef.current?.stop();
       listeningRef.current = false;
       setShowProceedButton(true);
       setDone(true);
 
-      // Add user message
       setMessages((prevMessages) => [
         ...prevMessages,
         { from: "user", text: msg },
       ]);
 
-      // Use functional update to get current orderList value
       setOrderList((currentOrderList) => {
-        // Calculate total from current order list
         const total = currentOrderList.reduce(
           (sum, item) => sum + item.quantity * item.price,
           0
         );
 
-        console.log("Current Order List:", currentOrderList); // Debug line
-        console.log("Calculated Total:", total); // Debug line
-
-        // Update messages with correct total
         setMessages([
           {
             from: "ai",
-            text: `Thank you for your order ! Your bill amount is ₹${total}. Now proceed to payment.`,
+            text: `Thank you for your order! Your bill amount is ₹${total}. Now proceed to payment.`,
           },
         ]);
 
@@ -162,151 +223,188 @@ export default function OrderPage() {
       return;
     }
 
-    // Don't process any other inputs if order is done
     if (done || showProceedButton) return;
 
-    // 2. Price query
-    const priceQuery = Object.keys(menuItems).find(
-      (item) => lower.includes("price") && lower.includes(item)
-    );
-    if (priceQuery) {
-      setMessages((m) => [
-        ...m,
-        { from: "user", text: msg },
-        {
-          from: "ai",
-          text: `The price of ${priceQuery} is ₹${menuItems[priceQuery]}.`,
-        },
-      ]);
+    // ✅ Price query
+    if (lower.includes("price")) {
+      // Extract item name from price query
+      const possibleItems = [
+        "burger", "chicken burger", "pizza", "margherita pizza", 
+        "fries", "loaded fries", "pasta", "salad", "garlic bread",
+        "coke", "onion rings", "milkshake", "smoothie","bbq burger","hot dog","veggie wrap",
+      ];
+      
+      const askedItem = possibleItems.find(item => lower.includes(item));
+      
+      if (askedItem) {
+        const inventoryCheck = checkInventoryItem(askedItem);
+        if (inventoryCheck.found && inventoryCheck.available) {
+          setMessages((m) => [
+            ...m,
+            { from: "user", text: msg },
+            { from: "ai", text: `The price of ${inventoryCheck.name} is ₹${inventoryCheck.price}.` },
+          ]);
+        } else {
+          setMessages((m) => [
+            ...m,
+            { from: "user", text: msg },
+            { from: "ai", text: "not present" },
+          ]);
+        }
+      } else {
+        setMessages((m) => [
+          ...m,
+          { from: "user", text: msg },
+          { from: "ai", text: "Which item price do you want to know?" },
+        ]);
+      }
       return;
     }
 
-    // Add user message first
+    // Add user message
     setMessages((m) => [...m, { from: "user", text: msg }]);
 
-    // Number parsing
+    // ✅ ENHANCED: Flexible item detection
     const quantityWords = {
-      one: 1,
-      two: 2,
-      three: 3,
-      four: 4,
-      five: 5,
-      six: 6,
-      seven: 7,
-      eight: 8,
-      nine: 9,
-      ten: 10,
-      n1: 1,
-      n2: 2,
-      n3: 3,
-      n4: 4,
-      n5: 5,
+      one: 1, two: 2, three: 3, four: 4, five: 5,
+      six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
     };
 
     const isRemove = lower.includes("remove") || lower.includes("cancel");
-    const ordersToAdd = [];
     const words = lower.split(" ");
 
-    Object.keys(menuItems).forEach((item) => {
-      const regex = new RegExp(`\\b${item.replace(/ /g, "\\s+")}\\b`, "i");
-      if (regex.test(lower)) {
-        const itemWords = item.split(" ");
-        let startIndex = -1;
-        for (let i = 0; i <= words.length - itemWords.length; i++) {
-          if (
-            words
-              .slice(i, i + itemWords.length)
-              .join(" ")
-              .toLowerCase() === item.toLowerCase()
-          ) {
-            startIndex = i;
-            break;
-          }
-        }
+    // ✅ Detect items with flexible matching
+    const possibleItems = [
+      "chicken burger", "margherita pizza", "loaded fries", "garlic bread",
+      "onion rings", "milkshake", "smoothie", // specific items first
+      "burger", "pizza", "fries", "pasta", "salad", "coke","bbq burger","hot dog","veggie wrap" // then general items
+    ];
+    const detectedItems = [];
+
+    // Check for items in order of specificity (specific items first)
+    for (const itemName of possibleItems) {
+      if (lower.includes(itemName)) {
+        // Find quantity
         let qty = 1;
-        if (startIndex > 0) {
-          const beforeWord = words[startIndex - 1];
+        const itemWords = itemName.split(" ");
+        const itemIndex = words.findIndex((word, index) => {
+          // Check if this position starts the item name
+          if (itemWords.length === 1) {
+            return word.includes(itemWords[0]);
+          } else {
+            // Multi-word item, check if all words match consecutively
+            return itemWords.every((itemWord, offset) => 
+              words[index + offset] && words[index + offset].includes(itemWord)
+            );
+          }
+        });
+        
+        if (itemIndex > 0) {
+          const beforeWord = words[itemIndex - 1];
           if (!isNaN(parseInt(beforeWord))) {
             qty = parseInt(beforeWord);
           } else if (quantityWords[beforeWord]) {
             qty = quantityWords[beforeWord];
           }
         }
-        ordersToAdd.push({ name: item, quantity: qty });
+        
+        detectedItems.push({ name: itemName, quantity: qty });
+        break; // Take the first (most specific) match
       }
-    });
+    }
 
-    if (ordersToAdd.length > 0) {
-      // Update order list
-      setOrderList((prev) => {
-        let updated = [...prev];
+    console.log('🔍 Detected items:', detectedItems);
 
-        for (const { name, quantity } of ordersToAdd) {
-          const price = menuItems[name];
-          const existingIndex = updated.findIndex((i) => i.name === name);
+    if (detectedItems.length > 0) {
+      // Process each detected item
+      detectedItems.forEach(({ name, quantity }) => {
+        const inventoryCheck = checkInventoryItem(name);
+        
+        if (!inventoryCheck.found || !inventoryCheck.available) {
+          // Item not found or out of stock
+          setTimeout(() => {
+            setMessages((msgs) => [
+              ...msgs,
+              { from: "ai", text: "not present" },
+            ]);
+          }, 500);
+          return;
+        }
 
-          if (isRemove) {
+        // ✅ Item found and available - use INVENTORY price
+        const price = inventoryCheck.price;
+        const actualItemName = inventoryCheck.name; // Real name from inventory
+        
+        if (isRemove) {
+          // Remove logic
+          setOrderList((prev) => {
+            const existingIndex = prev.findIndex((i) => i.name === actualItemName);
             if (existingIndex === -1) {
-              setMessages((msgs) => [
-                ...msgs,
-                {
-                  from: "ai",
-                  text: `You don't have any ${name} in your order.`,
-                },
-              ]);
-              continue;
+              setTimeout(() => {
+                setMessages((msgs) => [
+                  ...msgs,
+                  { from: "ai", text: `You don't have any ${name} in your order.` },
+                ]);
+              }, 500);
+              return prev;
             }
 
+            const updated = [...prev];
             const existing = updated[existingIndex];
-            const prevQty = existing.quantity;
-
-            if (quantity > prevQty) {
-              setMessages((msgs) => [
-                ...msgs,
-                {
-                  from: "ai",
-                  text: `let's check ....`,
-                },
-              ]);
-              continue;
-            }
-
-            updated[existingIndex].quantity -= quantity;
-            if (updated[existingIndex].quantity <= 0) {
+            
+            if (quantity >= existing.quantity) {
               updated.splice(existingIndex, 1);
+              setTimeout(() => {
+                setMessages((msgs) => [
+                  ...msgs,
+                  { from: "ai", text: `${name} removed` },
+                ]);
+              }, 500);
+            } else {
+              updated[existingIndex].quantity -= quantity;
+              setTimeout(() => {
+                setMessages((msgs) => [
+                  ...msgs,
+                  { from: "ai", text: `${quantity} ${name} removed` },
+                ]);
+              }, 500);
             }
-
-            setTimeout(() => {
-              setMessages((msgs) => [
-                ...msgs,
-                { from: "ai", text: `${name} is removed` },
-              ]);
-            }, 500);
-          } else {
+            
+            return updated;
+          });
+        } else {
+          // ✅ Add logic with INVENTORY price
+          setOrderList((prev) => {
+            const existingIndex = prev.findIndex((i) => i.name === actualItemName);
+            let updated = [...prev];
+            
             if (existingIndex !== -1) {
               updated[existingIndex].quantity += quantity;
             } else {
-              updated.push({ name, price, quantity });
+              updated.push({ 
+                name: actualItemName, // Use real inventory name
+                price: price, // Use real inventory price
+                quantity: quantity 
+              });
             }
-
+            
             setTimeout(() => {
               setMessages((msgs) => [
                 ...msgs,
-                { from: "ai", text: `${name} is added` },
+                { from: "ai", text: `${quantity === 1 ? 'one' : quantity} ${name} added` },
               ]);
             }, 500);
-          }
+            
+            return updated;
+          });
         }
-
-        // ADDED DEBUG: Log the updated order list
-        console.log("Updated Order List:", updated);
-        return updated;
       });
     } else {
+      // No recognized items
       setTimeout(() => {
         setMessages((msgs) => [
           ...msgs,
-          { from: "ai", text: "I didn't understand, say again" },
+          { from: "ai", text: "not present" },
         ]);
       }, 500);
     }
