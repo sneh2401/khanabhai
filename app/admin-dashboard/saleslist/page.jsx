@@ -354,60 +354,186 @@ export default function SalesList() {
   };
 
   // Enhanced print functionality
-  const handlePrint = () => {
-    const printWindow = window.open("", "_blank", "width=1200,height=800");
-    const currentDate = new Date().toLocaleDateString("en-IN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      timeZone: "Asia/Kolkata",
-    });
+  // Enhanced print functionality with PDF download
+// Enhanced print functionality with reliable PDF download
+const handlePrint = () => {
+  const printWindow = window.open("", "_blank", "width=1200,height=800");
+  const currentDate = new Date().toLocaleDateString("en-IN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "Asia/Kolkata",
+  });
 
-    const totalRevenue = deliveredOrders.reduce(
-      (sum, order) => sum + order.total,
-      0
-    );
-    const avgOrderValue =
-      deliveredOrders.length > 0 ? totalRevenue / deliveredOrders.length : 0;
-    const popularItems = getItemPopularityData();
-    const salesData = getSalesData();
+  const totalRevenue = deliveredOrders.reduce(
+    (sum, order) => sum + order.total,
+    0
+  );
+  const avgOrderValue =
+    deliveredOrders.length > 0 ? totalRevenue / deliveredOrders.length : 0;
+  const popularItems = getItemPopularityData();
+  const salesData = getSalesData();
 
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>KhanaBuddy - Sales Analytics Report (IST)</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #f59e0b; padding-bottom: 20px; }
-          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin: 20px 0; }
-          .stat-card { background: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; }
-          .stat-value { font-size: 24px; font-weight: bold; color: #1f2937; }
-          .stat-label { font-size: 14px; color: #6b7280; margin-top: 5px; }
-          .section { margin: 30px 0; }
-          .section-title { font-size: 20px; font-weight: bold; margin-bottom: 15px; }
-          table { width: 100%; border-collapse: collapse; margin: 10px 0; }
-          th, td { padding: 10px; text-align: left; border-bottom: 1px solid #e5e7eb; }
-          th { background: #f3f4f6; font-weight: bold; }
-          .today-highlight { background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; }
-          .no-data { background: #f3f4f6; padding: 15px; border-radius: 8px; text-align: center; color: #6b7280; }
-        </style>
-      </head>
-      <body>
+  const printContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>KhanaBuddy - Sales Analytics Report (IST)</title>
+      <style>
+        body { 
+          font-family: Arial, sans-serif; 
+          margin: 20px; 
+          line-height: 1.6;
+          color: #333;
+        }
+        .header { 
+          text-align: center; 
+          margin-bottom: 30px; 
+          border-bottom: 2px solid #f59e0b; 
+          padding-bottom: 20px; 
+        }
+        .stats-grid { 
+          display: grid; 
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+          gap: 20px; 
+          margin: 20px 0; 
+        }
+        .stat-card { 
+          background: #f9fafb; 
+          padding: 20px; 
+          border-radius: 8px; 
+          text-align: center; 
+          border: 1px solid #e5e7eb;
+        }
+        .stat-value { 
+          font-size: 24px; 
+          font-weight: bold; 
+          color: #1f2937; 
+        }
+        .stat-label { 
+          font-size: 14px; 
+          color: #6b7280; 
+          margin-top: 5px; 
+        }
+        .section { 
+          margin: 30px 0; 
+          page-break-inside: avoid;
+        }
+        .section-title { 
+          font-size: 20px; 
+          font-weight: bold; 
+          margin-bottom: 15px; 
+          color: #1f2937;
+        }
+        table { 
+          width: 100%; 
+          border-collapse: collapse; 
+          margin: 10px 0; 
+        }
+        th, td { 
+          padding: 10px; 
+          text-align: left; 
+          border-bottom: 1px solid #e5e7eb; 
+        }
+        th { 
+          background: #f3f4f6; 
+          font-weight: bold; 
+        }
+        .today-highlight { 
+          background: #fef3c7; 
+          padding: 15px; 
+          border-radius: 8px; 
+          border-left: 4px solid #f59e0b; 
+          margin: 20px 0;
+        }
+        .no-data { 
+          background: #f3f4f6; 
+          padding: 15px; 
+          border-radius: 8px; 
+          text-align: center; 
+          color: #6b7280; 
+        }
+        
+        /* Button container */
+        .button-container { 
+          position: fixed; 
+          top: 20px; 
+          right: 20px; 
+          z-index: 1000; 
+        }
+        .download-btn { 
+          background: linear-gradient(135deg, #10b981, #059669); 
+          color: white;
+          padding: 15px 30px; 
+          font-size: 16px; 
+          font-weight: 600; 
+          border: none; 
+          border-radius: 10px; 
+          cursor: pointer; 
+          transition: all 0.3s ease;
+          box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .download-btn:hover { 
+          background: linear-gradient(135deg, #059669, #047857); 
+          transform: translateY(-2px);
+          box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+        .download-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+          transform: none;
+        }
+        
+        .spinner {
+          display: none;
+          width: 16px;
+          height: 16px;
+          border: 2px solid #ffffff;
+          border-top: 2px solid transparent;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        
+        /* Hide button when printing */
+        @media print {
+          .button-container { display: none !important; }
+        }
+      </style>
+    </head>
+    <body>
+      <!-- Download Button -->
+      <div class="button-container">
+        <button id="downloadPdfBtn" class="download-btn">
+          <span id="downloadText">📥 Download PDF</span>
+          <div id="spinner" class="spinner"></div>
+        </button>
+      </div>
+
+      <!-- Report Content -->
+      <div id="reportContent">
         <div class="header">
-          <h1>KhanaBuddy Sales Analytics Report</h1>
-          <p>Generated on: ${currentDate} (IST) | Data Source: Real Orders Only</p>
+          <h1>🍽️ KhanaBuddy Sales Analytics Report</h1>
+          <p><strong>Generated on:</strong> ${currentDate} (IST)<br>
+          <strong>Data Source:</strong> Real Orders Only</p>
         </div>
 
         <div class="today-highlight">
-          <h3>Today's Performance (IST)</h3>
+          <h3>📊 Today's Performance (IST)</h3>
           <p><strong>Orders:</strong> ${
             todayStats.totalOrders
           } | <strong>Revenue:</strong> ${formatCurrency(
-      todayStats.totalRevenue
-    )} | <strong>Avg Order:</strong> ${formatCurrency(
-      todayStats.avgOrderValue
-    )}</p>
+    todayStats.totalRevenue
+  )} | <strong>Avg Order:</strong> ${formatCurrency(
+    todayStats.avgOrderValue
+  )}</p>
         </div>
 
         ${
@@ -416,26 +542,26 @@ export default function SalesList() {
         <div class="stats-grid">
           <div class="stat-card">
             <div class="stat-value">${formatCurrency(totalRevenue)}</div>
-            <div class="stat-label">Total Revenue</div>
+            <div class="stat-label">💰 Total Revenue</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${deliveredOrders.length}</div>
-            <div class="stat-label">Total Orders</div>
+            <div class="stat-label">📦 Total Orders</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${formatCurrency(avgOrderValue)}</div>
-            <div class="stat-label">Average Order Value</div>
+            <div class="stat-label">📈 Average Order Value</div>
           </div>
           <div class="stat-card">
             <div class="stat-value">${
               popularItems.filter((item) => item.name !== "No Data Yet").length
             }</div>
-            <div class="stat-label">Menu Items Sold</div>
+            <div class="stat-label">🍕 Menu Items Sold</div>
           </div>
         </div>
 
         <div class="section">
-          <div class="section-title">Revenue Trends (IST Dates)</div>
+          <div class="section-title">📈 Revenue Trends (IST Dates)</div>
           <table>
             <thead>
               <tr><th>Period</th><th>Revenue</th><th>Growth</th></tr>
@@ -463,7 +589,7 @@ export default function SalesList() {
         </div>
 
         <div class="section">
-          <div class="section-title">Top Items</div>
+          <div class="section-title">🏆 Top Items</div>
           <table>
             <thead>
               <tr><th>Item</th><th>Orders</th><th>Share</th></tr>
@@ -486,19 +612,78 @@ export default function SalesList() {
         `
             : `
         <div class="no-data">
-          <h3>No Sales Data Available</h3>
+          <h3>📊 No Sales Data Available</h3>
           <p>Start delivering orders to see analytics here. Your sales data will appear as you complete orders.</p>
         </div>
         `
         }
-      </body>
-      </html>
-    `;
+      </div>
 
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-  };
+      <script>
+        // Simple PDF download using browser's print functionality
+        document.getElementById('downloadPdfBtn').addEventListener('click', function() {
+          const btn = this;
+          const downloadText = document.getElementById('downloadText');
+          const spinner = document.getElementById('spinner');
+          
+          // Show loading state
+          btn.disabled = true;
+          downloadText.textContent = 'Generating PDF...';
+          spinner.style.display = 'inline-block';
+          
+          try {
+            // Hide the button for printing
+            document.querySelector('.button-container').style.display = 'none';
+            
+            // Set document title for PDF filename
+            document.title = 'KhanaBuddy_Sales_Report_' + new Date().toLocaleDateString('en-IN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              timeZone: 'Asia/Kolkata'
+            }).replace(/\\//g, '-');
+            
+            // Use browser's print dialog to save as PDF
+            setTimeout(() => {
+              window.print();
+              
+              // Show button again after print dialog
+              setTimeout(() => {
+                document.querySelector('.button-container').style.display = 'block';
+                
+                // Reset button state
+                btn.disabled = false;
+                downloadText.textContent = '📥 Download PDF';
+                spinner.style.display = 'none';
+              }, 1000);
+            }, 100);
+            
+          } catch (error) {
+            console.error('Error:', error);
+            
+            // Reset button state on error
+            btn.disabled = false;
+            downloadText.textContent = '📥 Download PDF';
+            spinner.style.display = 'none';
+            document.querySelector('.button-container').style.display = 'block';
+            
+            alert('Please use your browser\\'s print function and select "Save as PDF" to download the report.');
+          }
+        });
+
+        // Focus the window
+        window.focus();
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.focus();
+};
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
