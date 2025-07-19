@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getInventoryItems } from "./utils/inventoryUtils";
 
 // Unsplash direct CDN images – no need to download!
 const bgImages = [
@@ -13,18 +14,108 @@ const bgImages = [
   "https://images.pexels.com/photos/1437267/pexels-photo-1437267.jpeg?auto=compress&w=1200&q=80",
 ];
 
-// Hardcoded menu items
-const menuItems = [
-  { name: "Fries", price: 59, emoji: "🍟" },
-  { name: "Garlic Bread", price: 99, emoji: "🥖" },
-  { name: "Pasta", price: 149, emoji: "🍝" },
-  { name: "Salad", price: 89, emoji: "🥗" },
-  { name: "Burger", price: 129, emoji: "🍔" },
-];
+// ✅ Emoji mapping for different items
+const getItemEmoji = (itemName) => {
+  const name = itemName.toLowerCase();
+  const emojiMap = {
+    'fries': '🍟',
+    'french fries': '🍟',
+    'loaded fries': '🍟',
+    'garlic bread': '🥖',
+    'bread': '🍞',
+    'pasta': '🍝',
+    'spaghetti': '🍝',
+    'penne': '🍝',
+    'salad': '🥗',
+    'caesar salad': '🥗',
+    'garden salad': '🥗',
+    'burger': '🍔',
+    'chicken burger': '🍔',
+    'bbq burger': '🍔',
+    'beef burger': '🍔',
+    'pizza': '🍕',
+    'margherita pizza': '🍕',
+    'pepperoni pizza': '🍕',
+    'cheese pizza': '🍕',
+    'coke': '🥤',
+    'coca cola': '🥤',
+    'cola': '🥤',
+    'milkshake': '🥤',
+    'shake': '🥤',
+    'smoothie': '🥤',
+    'onion rings': '🧅',
+    'sandwich': '🥪',
+    'wrap': '🌯',
+    'taco': '🌮',
+    'burrito': '🌯'
+  };
+  
+  // Find matching emoji or use default
+  for (const [key, emoji] of Object.entries(emojiMap)) {
+    if (name.includes(key)) {
+      return emoji;
+    }
+  }
+  
+  return '🍽️'; // Default emoji for unknown items
+};
 
 export default function LandingPage() {
   const [idx, setIdx] = useState(0);
+  const [menuItems, setMenuItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+
+  // ✅ Load menu items from inventory
+  const loadMenuFromInventory = () => {
+    try {
+      setIsLoading(true);
+      const inventoryItems = getInventoryItems();
+      console.log('📦 Loading menu from inventory:', inventoryItems);
+      
+      // Convert inventory items to menu format and filter available items
+      const dynamicMenu = inventoryItems
+        .filter(item => item.quantity > 0) // Only show items in stock
+        .map(item => ({
+          name: item.item_name,
+          price: item.price,
+          emoji: getItemEmoji(item.item_name),
+          quantity: item.quantity
+        }))
+        .sort((a, b) => a.price - b.price); // Sort by price
+      
+      console.log('✅ Dynamic menu created:', dynamicMenu);
+      setMenuItems(dynamicMenu);
+    } catch (error) {
+      console.error('❌ Error loading menu from inventory:', error);
+      setMenuItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ✅ Load inventory on component mount
+  useEffect(() => {
+    loadMenuFromInventory();
+  }, []);
+
+  // ✅ Listen for inventory updates in real-time
+  useEffect(() => {
+    const handleInventoryUpdate = () => {
+      console.log('🔄 Inventory updated, refreshing menu...');
+      loadMenuFromInventory();
+    };
+
+    window.addEventListener('inventoryUpdated', handleInventoryUpdate);
+    window.addEventListener('pricesUpdated', handleInventoryUpdate);
+    window.addEventListener('quantityUpdated', handleInventoryUpdate);
+
+    return () => {
+      window.removeEventListener('inventoryUpdated', handleInventoryUpdate);
+      window.removeEventListener('pricesUpdated', handleInventoryUpdate);
+      window.removeEventListener('quantityUpdated', handleInventoryUpdate);
+    };
+  }, []);
 
   // Automatic background slide every 4 seconds
   useEffect(() => {
@@ -34,6 +125,11 @@ export default function LandingPage() {
     );
     return () => clearInterval(intv);
   }, []);
+
+  // ✅ Calculate dynamic stats
+  const totalItems = menuItems.length;
+  const lowestPrice = menuItems.length > 0 ? Math.min(...menuItems.map(item => item.price)) : 0;
+  const totalStock = menuItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <div className="min-h-screen w-full relative overflow-hidden">
@@ -73,7 +169,7 @@ export default function LandingPage() {
           </p>
         </div>
 
-        {/* Transparent Menu Table Section */}
+        {/* ✅ FIXED: Menu Table Section with Scroll */}
         <div className="w-full max-w-2xl mx-auto mb-8">
           <div className="bg-white/20 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 p-6 md:p-8">
             {/* Menu Header */}
@@ -86,80 +182,135 @@ export default function LandingPage() {
               </p>
             </div>
 
-            {/* Simplified Menu Table - Only Item & Price */}
-            <div className="overflow-hidden rounded-2xl border border-white/20">
-              <table className="w-full">
-                {/* Table Header */}
-                <thead className="bg-white/10 backdrop-blur-sm">
-                  <tr>
-                    <th className="px-4 md:px-6 py-4 text-left text-sm md:text-base font-bold text-white uppercase tracking-wider">
+            {/* ✅ Loading State */}
+            {isLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                <p className="text-white mt-4">Loading fresh menu...</p>
+              </div>
+            ) : menuItems.length === 0 ? (
+              /* ✅ Empty State */
+              <div className="text-center py-8">
+                <div className="text-4xl mb-4">🍽️</div>
+                <p className="text-white/90 mb-2">Menu is being prepared!</p>
+                <p className="text-white/70 text-sm">Check back soon for fresh items.</p>
+              </div>
+            ) : (
+              /* ✅ SCROLLABLE Menu Table Container */
+              <div className="overflow-hidden rounded-2xl border border-white/20">
+                {/* Fixed Table Header */}
+                <div className="bg-white/10 backdrop-blur-sm">
+                  <div className="grid grid-cols-2">
+                    <div className="px-4 md:px-6 py-4 text-left text-sm md:text-base font-bold text-white uppercase tracking-wider">
                       Item
-                    </th>
-                    <th className="px-4 md:px-6 py-4 text-right text-sm md:text-base font-bold text-white uppercase tracking-wider">
+                    </div>
+                    <div className="px-4 md:px-6 py-4 text-right text-sm md:text-base font-bold text-white uppercase tracking-wider">
                       Price
-                    </th>
-                  </tr>
-                </thead>
+                    </div>
+                  </div>
+                </div>
 
-                {/* Table Body */}
-                <tbody className="divide-y divide-white/10">
-                  {menuItems.map((item, index) => (
-                    <tr
-                      key={index}
-                      className="hover:bg-white/10 transition-colors duration-200"
-                    >
-                      <td className="px-4 md:px-6 py-4">
-                        <div className="flex items-center">
-                          <span className="text-xl md:text-2xl mr-3">
-                            {item.emoji}
-                          </span>
-                          <div className="text-base md:text-lg font-semibold text-white drop-shadow-md">
-                            {item.name}
+                {/* ✅ SCROLLABLE Menu Body - Fixed Height with Scroll */}
+                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                  <div className="divide-y divide-white/10">
+                    {menuItems.map((item, index) => (
+                      <div
+                        key={`${item.name}-${index}`}
+                        className="grid grid-cols-2 hover:bg-white/10 transition-colors duration-200"
+                      >
+                        <div className="px-4 md:px-6 py-4">
+                          <div className="flex items-center">
+                            <span className="text-xl md:text-2xl mr-3">
+                              {item.emoji}
+                            </span>
+                            <div className="text-base md:text-lg font-semibold text-white drop-shadow-md">
+                              {item.name}
+                            </div>
+                            {/* ✅ Show low stock indicator */}
+                            {item.quantity < 5 && (
+                              <span className="ml-2 text-xs bg-orange-500 text-white px-2 py-1 rounded-full">
+                                Low Stock
+                              </span>
+                            )}
                           </div>
                         </div>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 text-right">
-                        <div className="text-lg md:text-xl font-bold text-yellow-300 drop-shadow-md">
-                          ₹{item.price}
+                        <div className="px-4 md:px-6 py-4 text-right">
+                          <div className="text-lg md:text-xl font-bold text-yellow-300 drop-shadow-md">
+                            ₹{item.price}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
-            {/* Simplified Quick Stats */}
+            {/* ✅ Dynamic Quick Stats */}
             <div className="grid grid-cols-3 gap-4 mt-6 text-center">
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
-                <div className="text-lg md:text-xl font-bold text-white">5</div>
+                <div className="text-lg md:text-xl font-bold text-white">{totalItems}</div>
                 <div className="text-xs md:text-sm text-white/80">Items</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
                 <div className="text-lg md:text-xl font-bold text-yellow-300">
-                  ₹59
+                  {lowestPrice > 0 ? `₹${lowestPrice}` : '₹0'}
                 </div>
                 <div className="text-xs md:text-sm text-white/80">From</div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
                 <div className="text-lg md:text-xl font-bold text-green-300">
-                  Fresh
+                  {totalStock > 0 ? 'Fresh' : 'Soon'}
                 </div>
-                <div className="text-xs md:text-sm text-white/80">Always</div>
+                <div className="text-xs md:text-sm text-white/80">
+                  {totalStock > 0 ? 'Always' : 'Coming'}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Order Button */}
+        {/* ✅ Dynamic Order Button */}
         <button
           type="button"
           onClick={() => router.push("/order")}
-          className="shadow-2xl w-[95vw] max-w-[26rem] py-4 text-xl font-bold rounded-xl bg-gradient-to-r from-teal-500 via-indigo-500 to-pink-500 text-white hover:scale-105 transition-all"
+          disabled={menuItems.length === 0}
+          className={`shadow-2xl w-[95vw] max-w-[26rem] py-4 text-xl font-bold rounded-xl transition-all ${
+            menuItems.length > 0
+              ? 'bg-gradient-to-r from-teal-500 via-indigo-500 to-pink-500 text-white hover:scale-105'
+              : 'bg-gray-500 text-gray-300 cursor-not-allowed'
+          }`}
         >
-          🛒 Order Now
+          {menuItems.length > 0 ? '🛒 Order Now' : '⏳ Menu Loading...'}
         </button>
       </div>
+
+      {/* ✅ Custom Scrollbar Styles */}
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 8px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.3);
+          border-radius: 4px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.5);
+        }
+        
+        /* Firefox scrollbar styling */
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
     </div>
   );
 }
