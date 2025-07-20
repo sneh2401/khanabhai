@@ -1,5 +1,5 @@
 {
-  "name": "khanabuddy",
+  "name": "khanabhai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -21,6 +21,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4"
+    "tailwindcss": "^4",
+    "lightningcss": "^1.27.0"
   }
 }
